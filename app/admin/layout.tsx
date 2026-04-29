@@ -56,7 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="jgf-logo jgf-logo-bg" role="img" aria-label="Just Get Fit" style={{ width: 56, height: 36 }} />
             <div>
               <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>Admin</div>
-              <div style={{ fontSize: 11, color: 'var(--text-3)' }}>justgetfit.com</div>
+              <div style={{ fontSize: 11, color: 'var(--text-3)' }}>justgetfit.org</div>
             </div>
           </Link>
         </div>
