@@ -113,7 +113,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span>View site</span>
           </Link>
           <a
-            href="/admin/logout"
+            href="/logout"
             style={{
               display: 'flex',
               alignItems: 'center',

@@ -8,12 +8,6 @@ import { NextRequest, NextResponse } from 'next/server';
  * Returns 401 with WWW-Authenticate to trigger the browser's basic-auth prompt.
  */
 export function middleware(req: NextRequest) {
-  // Allow the logout endpoint to pass through without auth
-  // (so the user can actually reach it to invalidate their session)
-  if (req.nextUrl.pathname === '/admin/logout') {
-    return NextResponse.next();
-  }
-
   const expected = process.env.ADMIN_PASSWORD;
 
   // If no password is set in env, refuse access (safer than allowing through)
