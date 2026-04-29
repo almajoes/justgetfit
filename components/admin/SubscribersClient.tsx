@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import type { Subscriber } from '@/lib/supabase';
 
 type Stats = { total: number; confirmed: number; pending: number; unsubscribed: number };
@@ -106,7 +107,14 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
-        <button onClick={exportCSV} className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 13, marginLeft: 'auto' }}>
+        <Link
+          href="/admin/subscribers/import"
+          className="btn btn-ghost"
+          style={{ padding: '8px 14px', fontSize: 13, marginLeft: 'auto', textDecoration: 'none' }}
+        >
+          + Import
+        </Link>
+        <button onClick={exportCSV} className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 13 }}>
           Export CSV
         </button>
       </div>
