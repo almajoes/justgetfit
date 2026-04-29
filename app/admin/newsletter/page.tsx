@@ -4,12 +4,15 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Newsletter · Admin',
+  title: 'Send log · Admin',
 };
 
 type SendRow = {
   id: string;
-  post_id: string;
+  post_id: string | null;
+  kind: 'post' | 'broadcast';
+  subject: string | null;
+  body_markdown: string | null;
   sent_at: string;
   recipient_count: number;
   failed_count: number;
@@ -28,10 +31,9 @@ export default async function NewsletterAdminPage() {
 
   return (
     <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Newsletter</h1>
+      <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Send log</h1>
       <p style={{ color: 'var(--text-2)', marginBottom: 32 }}>
-        Log of every email blast. Newsletters are auto-sent when you publish a post (with the "Send to subscribers" toggle on),
-        or you can manually re-send from the post editor.
+        Every email blast — both <strong>post</strong> sends (auto-triggered when you publish an article) and <strong>broadcast</strong> messages (custom emails sent from <Link href="/admin/broadcast" style={{ color: 'var(--neon)' }}>the broadcast composer</Link>).
       </p>
 
       <div style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
@@ -39,7 +41,8 @@ export default async function NewsletterAdminPage() {
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.03)', textAlign: 'left' }}>
               <th style={th}>Sent</th>
-              <th style={th}>Article</th>
+              <th style={th}>Type</th>
+              <th style={th}>Subject / Article</th>
               <th style={th}>Recipients</th>
               <th style={th}>Failed</th>
               <th style={th}>Status</th>
@@ -52,7 +55,28 @@ export default async function NewsletterAdminPage() {
                   {new Date(s.sent_at).toLocaleString()}
                 </td>
                 <td style={td}>
-                  {s.posts ? (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      background: s.kind === 'broadcast' ? 'rgba(0,229,255,0.15)' : 'rgba(196,255,61,0.15)',
+                      color: s.kind === 'broadcast' ? 'var(--neon-2)' : 'var(--neon)',
+                      padding: '2px 8px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      borderRadius: 100,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    {s.kind || 'post'}
+                  </span>
+                </td>
+                <td style={td}>
+                  {s.kind === 'broadcast' ? (
+                    <span style={{ color: 'var(--text)', fontWeight: 500 }}>
+                      {s.subject || '(no subject)'}
+                    </span>
+                  ) : s.posts ? (
                     <Link
                       href={`/articles/${s.posts.slug}`}
                       style={{ color: 'var(--text)', textDecoration: 'none', fontWeight: 500 }}
@@ -100,7 +124,7 @@ export default async function NewsletterAdminPage() {
         </table>
         {sends.length === 0 && (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}>
-            No newsletter sends yet.
+            No emails sent yet.
           </div>
         )}
       </div>
