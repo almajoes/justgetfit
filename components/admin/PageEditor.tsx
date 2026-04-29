@@ -1,0 +1,329 @@
+'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+type AnyContent = Record<string, any>;
+
+export function PageEditor({ slug, initialContent }: { slug: string; initialContent: AnyContent }) {
+  const router = useRouter();
+  const [content, setContent] = useState<AnyContent>(initialContent);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function update(path: (string | number)[], value: any) {
+    setContent((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      let target: any = next;
+      for (let i = 0; i < path.length - 1; i++) target = target[path[i]];
+      target[path[path.length - 1]] = value;
+      return next;
+    });
+  }
+
+  function addItem(arrayKey: string, template: AnyContent) {
+    setContent((prev) => ({ ...prev, [arrayKey]: [...(prev[arrayKey] || []), template] }));
+  }
+  function removeItem(arrayKey: string, idx: number) {
+    setContent((prev) => ({ ...prev, [arrayKey]: prev[arrayKey].filter((_: any, i: number) => i !== idx) }));
+  }
+  function moveItem(arrayKey: string, idx: number, dir: -1 | 1) {
+    setContent((prev) => {
+      const arr = [...(prev[arrayKey] || [])];
+      const j = idx + dir;
+      if (j < 0 || j >= arr.length) return prev;
+      [arr[idx], arr[j]] = [arr[j], arr[idx]];
+      return { ...prev, [arrayKey]: arr };
+    });
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/pages/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error || 'Save failed.');
+      } else {
+        setSavedAt(new Date().toLocaleTimeString());
+        router.refresh();
+      }
+    } catch {
+      setError('Network error.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const TITLES: Record<string, string> = {
+    'home-hero': 'Home Hero',
+    about: 'About Us',
+    subscribe: 'Subscribe',
+    contact: 'Contact Us',
+  };
+
+  return (
+    <div style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>
+            Edit: {TITLES[slug]}
+          </h1>
+          <p style={{ color: 'var(--text-3)', fontSize: 14, marginTop: 4 }}>
+            Public path: <code>/{slug === 'home-hero' ? '' : slug}</code>
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {savedAt && <span style={{ color: 'var(--neon)', fontSize: 13 }}>Saved {savedAt}</span>}
+          <button onClick={save} disabled={saving} className="btn btn-primary" style={{ padding: '10px 22px', fontSize: 13 }}>
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ padding: 12, background: 'rgba(255,107,107,0.1)', border: '1px solid #ff6b6b', borderRadius: 8, color: '#ff6b6b', marginBottom: 16, fontSize: 14 }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {/* SHARED HEADLINE FIELDS for all 4 pages */}
+        <Field label="Pill text">
+          <input
+            className="input"
+            value={content.pill_text || ''}
+            onChange={(e) => update(['pill_text'], e.target.value)}
+          />
+        </Field>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <Field label="Headline (part 1)">
+            <input className="input" value={content.headline_part1 || ''} onChange={(e) => update(['headline_part1'], e.target.value)} />
+          </Field>
+          <Field label="Headline (italic accent)">
+            <input className="input" value={content.headline_accent || ''} onChange={(e) => update(['headline_accent'], e.target.value)} />
+          </Field>
+          <Field label="Headline (part 2)">
+            <input className="input" value={content.headline_part2 || ''} onChange={(e) => update(['headline_part2'], e.target.value)} />
+          </Field>
+        </div>
+
+        {/* HOME HERO specific */}
+        {slug === 'home-hero' && (
+          <>
+            <Field label="Lede paragraph">
+              <textarea className="input" rows={4} value={content.lede || ''} onChange={(e) => update(['lede'], e.target.value)} />
+            </Field>
+            <CTAFields content={content} onChange={update} />
+            <Field label="Hero background image URL (leave empty for gradient)">
+              <input className="input" value={content.background_image_url || ''} onChange={(e) => update(['background_image_url'], e.target.value)} placeholder="https://example.com/hero.jpg" />
+            </Field>
+            <ArrayEditor
+              title="Stat tiles (4 across the hero)"
+              items={content.stats || []}
+              onAdd={() => addItem('stats', { num: '', suffix: '', label: '' })}
+              onRemove={(i) => removeItem('stats', i)}
+              onMove={(i, d) => moveItem('stats', i, d)}
+              renderItem={(item, i) => (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 2fr', gap: 8 }}>
+                  <input className="input" placeholder="Number" value={item.num || ''} onChange={(e) => update(['stats', i, 'num'], e.target.value)} />
+                  <input className="input" placeholder="+/%" value={item.suffix || ''} onChange={(e) => update(['stats', i, 'suffix'], e.target.value)} />
+                  <input className="input" placeholder="Label" value={item.label || ''} onChange={(e) => update(['stats', i, 'label'], e.target.value)} />
+                </div>
+              )}
+            />
+            <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: -8, lineHeight: 1.5 }}>
+              <strong style={{ color: 'var(--text-2)' }}>Tip:</strong> use <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: 4 }}>auto:posts</code> in the Number field to show the live count of published articles, or <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: 4 }}>auto:categories</code> for the live category count. Anything else renders as-is.
+            </p>
+          </>
+        )}
+
+        {/* ABOUT specific */}
+        {slug === 'about' && (
+          <>
+            <Field label="Tagline (italic serif)">
+              <textarea className="input" rows={3} value={content.tagline || ''} onChange={(e) => update(['tagline'], e.target.value)} />
+            </Field>
+            <Field label="Body (Markdown — supports ## headings, **bold**, etc.)">
+              <textarea className="input" rows={14} style={{ fontFamily: 'monospace', fontSize: 13 }} value={content.body_markdown || ''} onChange={(e) => update(['body_markdown'], e.target.value)} />
+            </Field>
+            <ArrayEditor
+              title="Pillar cards"
+              items={content.pillars || []}
+              onAdd={() => addItem('pillars', { num: '0X', title: '', desc: '' })}
+              onRemove={(i) => removeItem('pillars', i)}
+              onMove={(i, d) => moveItem('pillars', i, d)}
+              renderItem={(item, i) => (
+                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 8 }}>
+                  <input className="input" placeholder="01" value={item.num || ''} onChange={(e) => update(['pillars', i, 'num'], e.target.value)} />
+                  <input className="input" placeholder="Pillar title" value={item.title || ''} onChange={(e) => update(['pillars', i, 'title'], e.target.value)} />
+                  <div />
+                  <textarea className="input" rows={2} placeholder="Description" value={item.desc || ''} onChange={(e) => update(['pillars', i, 'desc'], e.target.value)} />
+                </div>
+              )}
+            />
+            <CTAFields content={content} onChange={update} />
+          </>
+        )}
+
+        {/* SUBSCRIBE specific */}
+        {slug === 'subscribe' && (
+          <>
+            <Field label="Lede paragraph">
+              <textarea className="input" rows={3} value={content.lede || ''} onChange={(e) => update(['lede'], e.target.value)} />
+            </Field>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Field label="Form placeholder">
+                <input className="input" value={content.form_placeholder || ''} onChange={(e) => update(['form_placeholder'], e.target.value)} />
+              </Field>
+              <Field label="Form button label">
+                <input className="input" value={content.form_button || ''} onChange={(e) => update(['form_button'], e.target.value)} />
+              </Field>
+            </div>
+            <Field label="Promise section heading">
+              <input className="input" value={content.promise_heading || ''} onChange={(e) => update(['promise_heading'], e.target.value)} />
+            </Field>
+            <ArrayEditor
+              title="Promise cards"
+              items={content.promises || []}
+              onAdd={() => addItem('promises', { icon: '✨', title: '', desc: '' })}
+              onRemove={(i) => removeItem('promises', i)}
+              onMove={(i, d) => moveItem('promises', i, d)}
+              renderItem={(item, i) => (
+                <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
+                  <input className="input" placeholder="🎯" value={item.icon || ''} onChange={(e) => update(['promises', i, 'icon'], e.target.value)} />
+                  <input className="input" placeholder="Title" value={item.title || ''} onChange={(e) => update(['promises', i, 'title'], e.target.value)} />
+                  <div />
+                  <textarea className="input" rows={2} placeholder="Description" value={item.desc || ''} onChange={(e) => update(['promises', i, 'desc'], e.target.value)} />
+                </div>
+              )}
+            />
+            <Field label="FAQ section heading">
+              <input className="input" value={content.faq_heading || ''} onChange={(e) => update(['faq_heading'], e.target.value)} />
+            </Field>
+            <ArrayEditor
+              title="FAQ entries"
+              items={content.faqs || []}
+              onAdd={() => addItem('faqs', { q: '', a: '' })}
+              onRemove={(i) => removeItem('faqs', i)}
+              onMove={(i, d) => moveItem('faqs', i, d)}
+              renderItem={(item, i) => (
+                <>
+                  <input className="input" placeholder="Question" value={item.q || ''} onChange={(e) => update(['faqs', i, 'q'], e.target.value)} style={{ marginBottom: 8 }} />
+                  <textarea className="input" rows={3} placeholder="Answer (Markdown supported)" value={item.a || ''} onChange={(e) => update(['faqs', i, 'a'], e.target.value)} />
+                </>
+              )}
+            />
+          </>
+        )}
+
+        {/* CONTACT specific */}
+        {slug === 'contact' && (
+          <>
+            <Field label="Intro paragraph">
+              <textarea className="input" rows={3} value={content.intro || ''} onChange={(e) => update(['intro'], e.target.value)} />
+            </Field>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Form labels</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Field label="Name label"><input className="input" value={content.labels?.name || ''} onChange={(e) => update(['labels', 'name'], e.target.value)} /></Field>
+              <Field label="Email label"><input className="input" value={content.labels?.email || ''} onChange={(e) => update(['labels', 'email'], e.target.value)} /></Field>
+              <Field label="Subject label"><input className="input" value={content.labels?.subject || ''} onChange={(e) => update(['labels', 'subject'], e.target.value)} /></Field>
+              <Field label="Message label"><input className="input" value={content.labels?.message || ''} onChange={(e) => update(['labels', 'message'], e.target.value)} /></Field>
+            </div>
+            <Field label="Submit button text">
+              <input className="input" value={content.labels?.submit || ''} onChange={(e) => update(['labels', 'submit'], e.target.value)} />
+            </Field>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Form placeholders</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Field label="Name placeholder"><input className="input" value={content.placeholders?.name || ''} onChange={(e) => update(['placeholders', 'name'], e.target.value)} /></Field>
+              <Field label="Email placeholder"><input className="input" value={content.placeholders?.email || ''} onChange={(e) => update(['placeholders', 'email'], e.target.value)} /></Field>
+              <Field label="Subject placeholder"><input className="input" value={content.placeholders?.subject || ''} onChange={(e) => update(['placeholders', 'subject'], e.target.value)} /></Field>
+              <Field label="Message placeholder"><input className="input" value={content.placeholders?.message || ''} onChange={(e) => update(['placeholders', 'message'], e.target.value)} /></Field>
+            </div>
+            <Field label="Success message (shown after submit)">
+              <textarea className="input" rows={2} value={content.success_message || ''} onChange={(e) => update(['success_message'], e.target.value)} />
+            </Field>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function CTAFields({ content, onChange }: { content: AnyContent; onChange: (path: any[], value: any) => void }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Primary CTA</div>
+        <input className="input" placeholder="Label" value={content.cta_primary?.label || ''} onChange={(e) => onChange(['cta_primary', 'label'], e.target.value)} style={{ marginBottom: 8 }} />
+        <input className="input" placeholder="URL" value={content.cta_primary?.url || ''} onChange={(e) => onChange(['cta_primary', 'url'], e.target.value)} />
+      </div>
+      <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Secondary CTA</div>
+        <input className="input" placeholder="Label" value={content.cta_secondary?.label || ''} onChange={(e) => onChange(['cta_secondary', 'label'], e.target.value)} style={{ marginBottom: 8 }} />
+        <input className="input" placeholder="URL" value={content.cta_secondary?.url || ''} onChange={(e) => onChange(['cta_secondary', 'url'], e.target.value)} />
+      </div>
+    </div>
+  );
+}
+
+function ArrayEditor<T extends AnyContent>({
+  title,
+  items,
+  onAdd,
+  onRemove,
+  onMove,
+  renderItem,
+}: {
+  title: string;
+  items: T[];
+  onAdd: () => void;
+  onRemove: (i: number) => void;
+  onMove: (i: number, dir: -1 | 1) => void;
+  renderItem: (item: T, idx: number) => React.ReactNode;
+}) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>{title}</h3>
+        <button onClick={onAdd} className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: 13 }}>+ Add</button>
+      </div>
+      {items.map((item, i) => (
+        <div key={i} style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12, padding: 16, marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 8 }}>
+            <button onClick={() => onMove(i, -1)} disabled={i === 0} style={miniBtn}>↑</button>
+            <button onClick={() => onMove(i, 1)} disabled={i === items.length - 1} style={miniBtn}>↓</button>
+            <button onClick={() => onRemove(i)} style={{ ...miniBtn, color: '#ff6b6b' }}>Delete</button>
+          </div>
+          {renderItem(item, i)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const miniBtn: React.CSSProperties = {
+  background: 'transparent',
+  border: '1px solid var(--line-2)',
+  color: 'var(--text-2)',
+  padding: '4px 10px',
+  borderRadius: 6,
+  fontSize: 12,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
