@@ -180,13 +180,13 @@ Return a JSON array with ${count} topic objects. Spread topics evenly across the
     messages: [{ role: 'user', content: userPrompt }],
   });
 
-  const text = message.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('\n');
+  const textBlock = message.content.find((b) => b.type === 'text');
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new Error('No text content in topic generator response');
+  }
 
   // Strip code fences if Claude added them
-  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  const cleaned = textBlock.text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
 
   let parsed: unknown;
   try {

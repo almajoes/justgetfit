@@ -31,13 +31,15 @@ export async function GET(request: NextRequest) {
 
   // STEP 1: Try to generate this week's draft from the topic queue
   try {
-    const { data: topics } = await supabaseAdmin
+    const { data: initialTopics } = await supabaseAdmin
       .from('topics')
       .select('*')
       .is('used_at', null)
       .limit(50);
 
-    if (!topics || topics.length === 0) {
+    let topics = initialTopics ?? [];
+
+    if (topics.length === 0) {
       // No topics — try to refill before giving up
       console.log('[cron] No topics in queue, attempting to refill before draft generation');
       const refilled = await refillTopics();
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
       if (!freshTopics || freshTopics.length === 0) {
         return NextResponse.json({ ok: false, message: 'Refilled but still no topics found.' });
       }
-      topics.push(...freshTopics);
+      topics = freshTopics;
     }
 
     const topic = topics[Math.floor(Math.random() * topics.length)];

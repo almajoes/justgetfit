@@ -149,8 +149,9 @@ export default async function ArticlePage({ params }: { params: { slug: string }
       <div
         style={{
           position: 'relative',
-          aspectRatio: '32/9',
-          maxHeight: 380,
+          aspectRatio: '21/9',
+          maxHeight: 560,
+          minHeight: 360,
           width: '100%',
           overflow: 'hidden',
           ...heroBg,
@@ -160,7 +161,7 @@ export default async function ArticlePage({ params }: { params: { slug: string }
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'linear-gradient(180deg, transparent 50%, rgba(5,5,7,0.9) 100%)',
+            background: 'linear-gradient(180deg, transparent 60%, rgba(5,5,7,0.95) 100%)',
           }}
         />
       </div>

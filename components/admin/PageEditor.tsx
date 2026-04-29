@@ -121,8 +121,12 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
               <textarea className="input" rows={4} value={content.lede || ''} onChange={(e) => update(['lede'], e.target.value)} />
             </Field>
             <CTAFields content={content} onChange={update} />
-            <Field label="Hero background image URL (leave empty for gradient)">
-              <input className="input" value={content.background_image_url || ''} onChange={(e) => update(['background_image_url'], e.target.value)} placeholder="https://example.com/hero.jpg" />
+            <Field label="Hero background image">
+              <UnsplashPicker
+                value={content.background_image_url || ''}
+                onChange={(url) => update(['background_image_url'], url)}
+                emptyHint="Leave empty to use the gradient background instead."
+              />
             </Field>
             <ArrayEditor
               title="Stat tiles (4 across the hero)"
@@ -327,3 +331,130 @@ const miniBtn: React.CSSProperties = {
   cursor: 'pointer',
   fontFamily: 'inherit',
 };
+
+/**
+ * UnsplashPicker — search Unsplash inline, click a thumbnail to set the URL.
+ * Shows a preview of the currently-selected URL above the search field.
+ */
+function UnsplashPicker({
+  value,
+  onChange,
+  emptyHint,
+}: {
+  value: string;
+  onChange: (url: string) => void;
+  emptyHint?: string;
+}) {
+  const [query, setQuery] = useState('');
+  const [options, setOptions] = useState<{ url: string; credit: string }[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function search() {
+    if (!query.trim()) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/unsplash?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      setOptions(data.photos ?? []);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      {/* Current value preview */}
+      {value ? (
+        <div style={{ marginBottom: 12, position: 'relative', borderRadius: 8, overflow: 'hidden', aspectRatio: '21/9', background: 'var(--bg-1)' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={value} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              background: 'rgba(0,0,0,0.7)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              padding: '4px 10px',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            ✕ Remove
+          </button>
+        </div>
+      ) : (
+        emptyHint && (
+          <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--text-3)', fontStyle: 'italic' }}>
+            {emptyHint}
+          </div>
+        )
+      )}
+
+      {/* URL input — manual paste */}
+      <input
+        className="input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://images.unsplash.com/..."
+        style={{ marginBottom: 8, fontFamily: 'monospace', fontSize: 12 }}
+      />
+
+      {/* Unsplash search */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <input
+          className="input"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              search();
+            }
+          }}
+          placeholder="Search Unsplash for hero photos..."
+          style={{ flex: 1 }}
+        />
+        <button
+          type="button"
+          onClick={search}
+          disabled={busy || !query.trim()}
+          className="btn btn-ghost"
+          style={{ flexShrink: 0 }}
+        >
+          {busy ? 'Searching…' : 'Search'}
+        </button>
+      </div>
+
+      {/* Results grid */}
+      {options.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+          {options.map((p) => (
+            <button
+              key={p.url}
+              type="button"
+              onClick={() => onChange(p.url)}
+              style={{
+                aspectRatio: '16/9',
+                borderRadius: 8,
+                overflow: 'hidden',
+                border: `2px solid ${value === p.url ? 'var(--neon)' : 'transparent'}`,
+                cursor: 'pointer',
+                padding: 0,
+                background: 'transparent',
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
