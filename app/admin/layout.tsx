@@ -19,6 +19,7 @@ const SECTIONS: { heading: string; links: { href: string; label: string; icon: s
     heading: 'Newsletter',
     links: [
       { href: '/admin/subscribers', label: 'Subscribers', icon: '👥' },
+      { href: '/admin/broadcast', label: 'Broadcast', icon: '📣' },
       { href: '/admin/newsletter', label: 'Send log', icon: '📨' },
     ],
   },
