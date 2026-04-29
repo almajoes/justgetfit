@@ -1,4 +1,4 @@
-# justgetfit.com
+# justgetfit.org
 
 Evidence-based fitness blog. Next.js 14 (App Router) + Supabase + Anthropic Claude + Resend + Vercel.
 
@@ -44,9 +44,9 @@ Evidence-based fitness blog. Next.js 14 (App Router) + Supabase + Anthropic Clau
 
 ### 4. Resend
 1. resend.com → create account (free: 3,000 emails/month)
-2. Verify your domain `justgetfit.com` (DNS records they provide)
+2. Verify your domain `justgetfit.org` (DNS records they provide)
 3. Create API key → `RESEND_API_KEY`
-4. Set `RESEND_FROM_EMAIL` to e.g. `"Just Get Fit <hello@justgetfit.com>"`
+4. Set `RESEND_FROM_EMAIL` to e.g. `"Just Get Fit <hello@justgetfit.org>"`
 
 ### 5. Local dev
 
