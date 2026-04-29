@@ -28,40 +28,10 @@ export function DraftsClient({
   unusedTopicCount: number;
 }) {
   const router = useRouter();
-  const [batchSize, setBatchSize] = useState(5);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const pending = drafts.filter((d) => d.status === 'pending');
   const handled = drafts.filter((d) => d.status !== 'pending');
-
-  async function batchGenerate() {
-    if (busy) return;
-    if (!confirm(`Generate ${batchSize} drafts? This costs roughly $${(batchSize * 0.2).toFixed(2)} in API calls.`)) {
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setProgress({ done: 0, total: batchSize });
-
-    try {
-      for (let i = 0; i < batchSize; i++) {
-        const res = await fetch('/api/admin/batch-generate', { method: 'POST' });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(`Generation ${i + 1} failed: ${text}`);
-        }
-        setProgress({ done: i + 1, total: batchSize });
-      }
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Batch failed');
-    } finally {
-      setBusy(false);
-      setTimeout(() => setProgress(null), 2000);
-    }
-  }
 
   return (
     <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
@@ -88,46 +58,17 @@ export function DraftsClient({
           border: '1px solid rgba(196,255,61,0.15)',
         }}
       >
-        <h2 className="text-xl font-bold mb-2">Batch generate drafts</h2>
+        <h2 className="text-xl font-bold mb-2">Need to generate drafts?</h2>
         <p className="text-sm mb-5" style={{ color: 'var(--text-2)' }}>
-          Generate multiple drafts at once for backfilling. Each one becomes a pending draft you'll review before publishing. Costs roughly $0.10–0.30 per draft.
+          Use the dedicated <Link href="/admin/generate" style={{ color: 'var(--neon)', textDecoration: 'underline' }}>Generate articles</Link> page for batch generation, including a one-time backfill mode that auto-publishes articles with backdated weekly timestamps.
         </p>
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <label className="label">How many?</label>
-            <select
-              value={batchSize}
-              onChange={(e) => setBatchSize(Number(e.target.value))}
-              disabled={busy}
-              className="input"
-              style={{ width: 120 }}
-            >
-              <option value={1}>1</option>
-              <option value={3}>3</option>
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={15}>15</option>
-              <option value={25}>25</option>
-            </select>
-          </div>
-          <button
-            type="button"
-            onClick={batchGenerate}
-            disabled={busy || unusedTopicCount === 0}
-            className="btn btn-primary"
-          >
-            {busy
-              ? progress
-                ? `Generating ${progress.done}/${progress.total}…`
-                : 'Generating…'
-              : `Generate ${batchSize} drafts`}
-          </button>
-          {unusedTopicCount === 0 && (
-            <span className="text-xs" style={{ color: 'var(--text-3)' }}>
-              Add topics to the queue first
-            </span>
-          )}
-        </div>
+        <Link
+          href="/admin/generate"
+          className="btn btn-primary"
+          style={{ display: 'inline-block', textDecoration: 'none' }}
+        >
+          Go to Generate articles →
+        </Link>
         {error && (
           <div
             className="mt-4 px-4 py-3 rounded-lg text-sm"

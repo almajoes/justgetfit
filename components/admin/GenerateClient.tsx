@@ -23,7 +23,9 @@ export function GenerateClient({
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(postCount === 0 ? 'backfill' : 'drafts');
-  const [count, setCount] = useState(Math.min(unusedTopicCount, 5));
+  const [count, setCount] = useState(
+    postCount === 0 ? unusedTopicCount : Math.min(unusedTopicCount, 5)
+  );
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<ProgressItem[]>([]);
   const [done, setDone] = useState(false);
@@ -153,18 +155,61 @@ export function GenerateClient({
           >
             <div style={{ marginBottom: 16 }}>
               <label className="label">How many articles to generate?</label>
-              <input
-                type="number"
-                className="input"
-                value={count}
-                min={1}
-                max={unusedTopicCount}
-                onChange={(e) => setCount(Math.max(1, Math.min(unusedTopicCount, parseInt(e.target.value) || 1)))}
-                disabled={running}
-                style={{ maxWidth: 160 }}
-              />
-              <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 6 }}>
-                {unusedTopicCount} unused topic{unusedTopicCount === 1 ? '' : 's'} available in the queue.
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <input
+                  type="number"
+                  className="input"
+                  value={count}
+                  min={1}
+                  max={unusedTopicCount}
+                  onChange={(e) => setCount(Math.max(1, Math.min(unusedTopicCount, parseInt(e.target.value) || 1)))}
+                  disabled={running}
+                  style={{ maxWidth: 160 }}
+                />
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[3, 5, 10, 25].filter((n) => n <= unusedTopicCount).map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setCount(n)}
+                      disabled={running}
+                      style={{
+                        background: count === n ? 'var(--neon)' : 'transparent',
+                        color: count === n ? '#000' : 'var(--text-2)',
+                        border: `1px solid ${count === n ? 'var(--neon)' : 'var(--line-2)'}`,
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: running ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCount(unusedTopicCount)}
+                    disabled={running}
+                    style={{
+                      background: count === unusedTopicCount ? 'var(--neon)' : 'transparent',
+                      color: count === unusedTopicCount ? '#000' : 'var(--text-2)',
+                      border: `1px solid ${count === unusedTopicCount ? 'var(--neon)' : 'var(--line-2)'}`,
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: running ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    All ({unusedTopicCount})
+                  </button>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 8 }}>
+                {unusedTopicCount} unused topic{unusedTopicCount === 1 ? '' : 's'} available in the queue. Each article takes ~30–60 seconds.
               </p>
             </div>
 
