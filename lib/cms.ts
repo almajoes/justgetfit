@@ -28,7 +28,7 @@ const SITE_DEFAULTS: SiteSettings = {
   name: 'Just Get Fit',
   tagline: 'Stronger. Every day.',
   description: 'Evidence-based fitness writing.',
-  contact_email: 'hello@justgetfit.com',
+  contact_email: 'hello@justgetfit.org',
   newsletter_enabled: true,
 };
 

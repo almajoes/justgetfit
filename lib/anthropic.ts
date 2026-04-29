@@ -5,7 +5,7 @@ import slugify from 'slugify';
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 const MODEL = 'claude-sonnet-4-5';
 
-const SYSTEM_PROMPT = `You are writing a fitness blog post for Just Get Fit at justgetfit.com.
+const SYSTEM_PROMPT = `You are writing a fitness blog post for Just Get Fit at justgetfit.org.
 
 BRAND VOICE:
 - Editorial "we" voice (Just Get Fit Editorial), conversational, opinionated but humble

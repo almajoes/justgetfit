@@ -1,8 +1,8 @@
 import { Resend } from 'resend';
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const fromEmail = process.env.RESEND_FROM_EMAIL || 'Just Get Fit <hello@justgetfit.com>';
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.com';
+const fromEmail = process.env.RESEND_FROM_EMAIL || 'Just Get Fit <hello@justgetfit.org>';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
 
 export const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
