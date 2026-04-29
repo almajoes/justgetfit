@@ -38,8 +38,23 @@ const FOOTER_DEFAULTS: FooterSettings = {
   version_label: 'v1.0',
 };
 
+// Site code injection — meta tags for verification + analytics scripts
+// Stored under settings.site_code. All fields optional. No defaults beyond empty strings.
+export type SiteCode = {
+  meta_tags: string;        // Raw HTML to inject in <head> — typically <meta name="..." content="..." /> tags
+  head_scripts: string;     // Raw HTML for <head> — analytics like Google Analytics gtag.js, Plausible, Fathom
+  body_scripts: string;     // Raw HTML for end of <body> — chat widgets, late-loading scripts
+};
+
+const SITE_CODE_DEFAULTS: SiteCode = {
+  meta_tags: '',
+  head_scripts: '',
+  body_scripts: '',
+};
+
 export const getSiteSettings = () => getSetting('site', SITE_DEFAULTS);
 export const getFooterSettings = () => getSetting('footer', FOOTER_DEFAULTS);
+export const getSiteCode = () => getSetting('site_code', SITE_CODE_DEFAULTS);
 
 // -----------------------------------------------------
 // PAGES (structured content)

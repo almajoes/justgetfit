@@ -30,6 +30,7 @@ const SECTIONS: { heading: string; links: { href: string; label: string; icon: s
       { href: '/admin/navigation', label: 'Navigation', icon: '🗺️' },
       { href: '/admin/partners', label: 'Partners', icon: '🤝' },
       { href: '/admin/settings', label: 'Site settings', icon: '⚙️' },
+      { href: '/admin/site-code', label: 'Site code', icon: '🧩' },
     ],
   },
 ];
