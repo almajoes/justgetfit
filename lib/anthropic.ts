@@ -110,3 +110,109 @@ Write the post. Respond with the JSON object only - no markdown fences, no pream
 }
 
 export { readingMinutes };
+
+// =============================================================================
+// TOPIC GENERATION
+//
+// Used by /api/admin/topics/generate (manual) and the weekly cron.
+// Takes the 8 fitness categories + existing topic titles (to avoid duplicates)
+// and asks Claude to come up with N fresh topic ideas.
+// =============================================================================
+
+const TOPIC_SYSTEM_PROMPT = `You are a fitness content strategist for Just Get Fit at justgetfit.org.
+
+Your job is to generate fresh, original article topic ideas for an evidence-based fitness blog.
+
+EDITORIAL VOICE:
+- Skeptical of industry hype. Practical. Opinionated but humble.
+- Topics should reward training-curious adults who already lift, run, or move
+- Avoid clickbait, listicles, and supplement marketing tropes
+- Avoid trendy buzzwords ("biohacking", "dopamine detox", "gut brain axis")
+- Topics should be specific enough to write 800-1200 words on, not vague ("Strength training tips")
+
+EVERY TOPIC MUST INCLUDE:
+- A clear, punchy title (max 70 chars)
+- A category from this exact list: strength, hypertrophy, conditioning, nutrition, recovery, mobility, programming, mindset
+- A short "angle" (1-2 sentences explaining the unique take or what the article will argue)
+
+DIVERSITY:
+- Spread topics across all 8 categories (don't put 5 strength topics in one batch)
+- Mix evergreen topics with timely takes
+- Mix beginner-relevant and advanced-relevant
+
+OUTPUT FORMAT (strict JSON array, no markdown fences):
+[
+  {
+    "title": "string",
+    "category": "strength" | "hypertrophy" | "conditioning" | "nutrition" | "recovery" | "mobility" | "programming" | "mindset",
+    "angle": "string"
+  },
+  ...
+]`;
+
+export type GeneratedTopic = {
+  title: string;
+  category: string;
+  angle: string;
+};
+
+const VALID_CATEGORIES = ['strength', 'hypertrophy', 'conditioning', 'nutrition', 'recovery', 'mobility', 'programming', 'mindset'];
+
+export async function generateTopics(opts: {
+  count: number;
+  existingTitles?: string[];
+}): Promise<GeneratedTopic[]> {
+  const count = Math.max(1, Math.min(50, opts.count));
+  const existing = (opts.existingTitles || []).slice(0, 200); // cap at 200 for prompt size
+
+  const userPrompt = `Generate ${count} fresh, original article topics for Just Get Fit.
+
+${existing.length > 0
+  ? `EXISTING TOPICS (do NOT duplicate or closely paraphrase these):\n${existing.map((t) => `- ${t}`).join('\n')}\n`
+  : 'This is the first batch — no existing topics to avoid.'}
+
+Return a JSON array with ${count} topic objects. Spread topics evenly across the 8 categories. Each topic should be specific enough to write a focused 800-1200 word article on.`;
+
+  const message = await client.messages.create({
+    model: MODEL,
+    max_tokens: 4000,
+    system: TOPIC_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userPrompt }],
+  });
+
+  const text = message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n');
+
+  // Strip code fences if Claude added them
+  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (err) {
+    throw new Error(`Failed to parse topic generator output as JSON: ${(err as Error).message}`);
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error('Topic generator did not return a JSON array');
+  }
+
+  const topics: GeneratedTopic[] = [];
+  for (const raw of parsed) {
+    if (!raw || typeof raw !== 'object') continue;
+    const r = raw as Record<string, unknown>;
+    const title = typeof r.title === 'string' ? r.title.trim() : '';
+    const category = typeof r.category === 'string' ? r.category.trim().toLowerCase() : '';
+    const angle = typeof r.angle === 'string' ? r.angle.trim() : '';
+    if (!title || !VALID_CATEGORIES.includes(category)) continue;
+    topics.push({ title, category, angle });
+  }
+
+  if (topics.length === 0) {
+    throw new Error('Topic generator returned no valid topics');
+  }
+
+  return topics;
+}

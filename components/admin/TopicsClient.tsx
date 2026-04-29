@@ -10,12 +10,36 @@ export function TopicsClient({ topics }: { topics: Topic[] }) {
   const [error, setError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState<unknown[] | null>(null);
+  const [generateCount] = useState(8);
 
   const [newTopic, setNewTopic] = useState({ title: '', category: '', angle: '' });
   const [editForm, setEditForm] = useState({ title: '', category: '', angle: '' });
 
   const unused = topics.filter((t) => !t.used_at);
   const used = topics.filter((t) => t.used_at);
+
+  async function generateWithAi() {
+    setGenerating(true);
+    setError(null);
+    setGenerated(null);
+    try {
+      const res = await fetch('/api/admin/topics/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: generateCount }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setGenerated(data.topics || []);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Topic generation failed');
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   async function addTopic() {
     if (!newTopic.title.trim() || !newTopic.category.trim()) {
@@ -112,10 +136,33 @@ export function TopicsClient({ topics }: { topics: Topic[] }) {
             {unused.length} unused · {used.length} used · {topics.length} total
           </p>
         </div>
-        <button onClick={() => setShowAdd(!showAdd)} className="btn btn-primary">
-          {showAdd ? 'Cancel' : '+ Add topic'}
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={generateWithAi}
+            disabled={busy || generating}
+            className="btn btn-ghost"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            {generating ? `Generating ${generateCount}…` : `✨ Generate ${generateCount} with AI`}
+          </button>
+          <button onClick={() => setShowAdd(!showAdd)} className="btn btn-primary">
+            {showAdd ? 'Cancel' : '+ Add topic'}
+          </button>
+        </div>
       </div>
+
+      {generated && generated.length > 0 && (
+        <div
+          className="mb-6 px-4 py-3 rounded-lg text-sm"
+          style={{
+            background: 'rgba(196,255,61,0.07)',
+            border: '1px solid rgba(196,255,61,0.3)',
+            color: 'var(--neon)',
+          }}
+        >
+          ✨ Added {generated.length} new topic{generated.length === 1 ? '' : 's'} via AI. They've been added to the unused queue below.
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 px-4 py-3 rounded-lg text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: 'rgb(252,165,165)' }}>

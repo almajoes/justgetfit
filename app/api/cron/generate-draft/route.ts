@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { generateDraft } from '@/lib/anthropic';
+import { generateDraft, generateTopics } from '@/lib/anthropic';
 import { searchUnsplash } from '@/lib/unsplash';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 120;
+
+// When unused topic count drops to this threshold, auto-generate more
+const TOPIC_REFILL_THRESHOLD = 8;
+const TOPIC_REFILL_BATCH_SIZE = 12;
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -14,6 +18,18 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
+  const result: {
+    ok: boolean;
+    draftId?: string;
+    title?: string;
+    coverImage?: string | null;
+    reviewUrl?: string;
+    topicsRefilled?: number;
+    error?: string;
+    message?: string;
+  } = { ok: false };
+
+  // STEP 1: Try to generate this week's draft from the topic queue
   try {
     const { data: topics } = await supabaseAdmin
       .from('topics')
@@ -22,10 +38,26 @@ export async function GET(request: NextRequest) {
       .limit(50);
 
     if (!topics || topics.length === 0) {
-      return NextResponse.json({
-        ok: false,
-        message: 'No unused topics in queue. Add more topics in /admin/topics.',
-      });
+      // No topics — try to refill before giving up
+      console.log('[cron] No topics in queue, attempting to refill before draft generation');
+      const refilled = await refillTopics();
+      if (refilled === 0) {
+        return NextResponse.json({
+          ok: false,
+          message: 'No unused topics and topic refill failed.',
+        });
+      }
+      result.topicsRefilled = refilled;
+      // Re-fetch
+      const { data: freshTopics } = await supabaseAdmin
+        .from('topics')
+        .select('*')
+        .is('used_at', null)
+        .limit(50);
+      if (!freshTopics || freshTopics.length === 0) {
+        return NextResponse.json({ ok: false, message: 'Refilled but still no topics found.' });
+      }
+      topics.push(...freshTopics);
     }
 
     const topic = topics[Math.floor(Math.random() * topics.length)];
@@ -76,16 +108,66 @@ export async function GET(request: NextRequest) {
       .update({ used_at: new Date().toISOString() })
       .eq('id', topic.id);
 
-    return NextResponse.json({
-      ok: true,
-      draftId: draft.id,
-      title: draft.title,
-      coverImage: photo?.url ?? null,
-      reviewUrl: `/admin/drafts/${draft.id}`,
-    });
+    result.ok = true;
+    result.draftId = draft.id;
+    result.title = draft.title;
+    result.coverImage = photo?.url ?? null;
+    result.reviewUrl = `/admin/drafts/${draft.id}`;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Cron generate-draft failed:', message);
+    console.error('[cron] Draft generation failed:', message);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
+
+  // STEP 2: After draft generation, check if topic queue is running low and replenish if so
+  // This runs in addition to STEP 1, so the cron always (a) drafts an article and (b) keeps queue stocked
+  try {
+    const { count: unusedCount } = await supabaseAdmin
+      .from('topics')
+      .select('*', { count: 'exact', head: true })
+      .is('used_at', null);
+
+    if ((unusedCount ?? 0) < TOPIC_REFILL_THRESHOLD) {
+      console.log(`[cron] Unused topics low (${unusedCount}), refilling`);
+      const refilled = await refillTopics();
+      result.topicsRefilled = (result.topicsRefilled ?? 0) + refilled;
+    }
+  } catch (err) {
+    // Don't fail the entire cron if just the refill fails — the draft was already created
+    console.error('[cron] Topic refill failed (draft was still created):', err);
+  }
+
+  return NextResponse.json(result);
+}
+
+/**
+ * Generate fresh topics and insert them into the topics table.
+ * Returns the number of topics inserted.
+ */
+async function refillTopics(): Promise<number> {
+  const { data: existingTopics } = await supabaseAdmin.from('topics').select('title');
+  const existingTitles = (existingTopics || []).map((t) => t.title as string);
+
+  const topics = await generateTopics({
+    count: TOPIC_REFILL_BATCH_SIZE,
+    existingTitles,
+  });
+
+  const rows = topics.map((t) => ({
+    title: t.title,
+    category: t.category,
+    angle: t.angle,
+  }));
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from('topics')
+    .insert(rows)
+    .select();
+
+  if (error) {
+    console.error('[cron] Topic insert failed:', error);
+    return 0;
+  }
+
+  return inserted?.length ?? 0;
 }

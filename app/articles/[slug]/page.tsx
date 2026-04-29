@@ -40,15 +40,29 @@ async function getCategoryCounts() {
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const post = await getPost(params.slug);
   if (!post) return {};
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
+  const ogImage = post.cover_image_url || `${SITE_URL}/og-image.png`;
+  const url = `${SITE_URL}/articles/${post.slug}`;
   return {
     title: post.title,
     description: post.excerpt ?? undefined,
+    alternates: { canonical: url },
     openGraph: {
       title: post.title,
       description: post.excerpt ?? undefined,
       type: 'article',
+      url,
       publishedTime: post.published_at,
-      images: post.cover_image_url ? [post.cover_image_url] : [],
+      modifiedTime: post.updated_at,
+      authors: ['Just Get Fit Editorial'],
+      section: post.category ?? undefined,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: post.title }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.excerpt ?? undefined,
+      images: [ogImage],
     },
   };
 }
@@ -92,8 +106,44 @@ export default async function ArticlePage({ params }: { params: { slug: string }
           CATEGORY_GRADIENTS.strength,
       };
 
+  // JSON-LD Article schema — helps Google understand the content structure
+  // and qualify for rich results (publication date, author, image)
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
+  const articleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.excerpt,
+    image: post.cover_image_url || `${SITE_URL}/og-image.png`,
+    datePublished: post.published_at,
+    dateModified: post.updated_at || post.published_at,
+    author: {
+      '@type': 'Organization',
+      name: 'Just Get Fit Editorial',
+      url: SITE_URL,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Just Get Fit',
+      url: SITE_URL,
+      logo: {
+        '@type': 'ImageObject',
+        url: `${SITE_URL}/og-image.png`,
+      },
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': `${SITE_URL}/articles/${post.slug}`,
+    },
+    articleSection: post.category ?? undefined,
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
       <SiteNav />
 
       <div
