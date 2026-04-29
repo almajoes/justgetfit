@@ -14,11 +14,23 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   let body: {
     title: string; slug: string; excerpt: string; category: string; content: string;
     cover_image_url?: string | null; cover_image_credit?: string | null;
+    published_at?: string | null;
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Bad JSON' }, { status: 400 }); }
 
   if (!body.title?.trim() || !body.slug?.trim() || !body.content?.trim()) {
     return NextResponse.json({ error: 'Title, slug, and content are required' }, { status: 400 });
+  }
+
+  // Validate published_at if provided. Must be a valid ISO date string.
+  // Empty string / null / undefined = leave it alone (don't update).
+  let publishedAtUpdate: string | undefined;
+  if (typeof body.published_at === 'string' && body.published_at.trim()) {
+    const d = new Date(body.published_at);
+    if (isNaN(d.getTime())) {
+      return NextResponse.json({ error: 'Invalid published_at date' }, { status: 400 });
+    }
+    publishedAtUpdate = d.toISOString();
   }
 
   // Check slug isn't taken by a different post
@@ -34,18 +46,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const { data: oldPost } = await supabaseAdmin.from('posts').select('slug, category').eq('id', params.id).maybeSingle();
 
+  const updateData: Record<string, unknown> = {
+    title: body.title.trim(),
+    slug: body.slug.trim(),
+    excerpt: body.excerpt?.trim() || null,
+    category: body.category?.trim() || null,
+    content: body.content,
+    cover_image_url: body.cover_image_url || null,
+    cover_image_credit: body.cover_image_credit || null,
+    read_minutes: readingMinutes(body.content),
+  };
+  if (publishedAtUpdate) updateData.published_at = publishedAtUpdate;
+
   const { error } = await supabaseAdmin
     .from('posts')
-    .update({
-      title: body.title.trim(),
-      slug: body.slug.trim(),
-      excerpt: body.excerpt?.trim() || null,
-      category: body.category?.trim() || null,
-      content: body.content,
-      cover_image_url: body.cover_image_url || null,
-      cover_image_credit: body.cover_image_credit || null,
-      read_minutes: readingMinutes(body.content),
-    })
+    .update(updateData)
     .eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

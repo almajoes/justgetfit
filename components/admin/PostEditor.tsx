@@ -6,6 +6,31 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Post, Category } from '@/lib/supabase';
 
+/**
+ * Convert an ISO timestamp (UTC, e.g. "2026-04-29T13:00:00Z") to the format
+ * that <input type="datetime-local"> expects: "YYYY-MM-DDTHH:mm" in LOCAL time.
+ * The browser displays whatever we feed it as local time, so we have to
+ * actually convert UTC → local before formatting.
+ */
+function toDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Convert the datetime-local string back to a full ISO string (UTC).
+ * Returns null if input is empty/invalid.
+ */
+function fromDatetimeLocal(local: string): string | null {
+  if (!local) return null;
+  const d = new Date(local); // browser parses as local time
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 export function PostEditor({ post, categories }: { post: Post; categories: Category[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState<null | 'save' | 'delete'>(null);
@@ -19,6 +44,8 @@ export function PostEditor({ post, categories }: { post: Post; categories: Categ
   const [content, setContent] = useState(post.content);
   const [coverUrl, setCoverUrl] = useState(post.cover_image_url ?? '');
   const [coverCredit, setCoverCredit] = useState(post.cover_image_credit ?? '');
+  // Published date in datetime-local format (local time, no timezone) — YYYY-MM-DDTHH:mm
+  const [publishedAt, setPublishedAt] = useState(toDatetimeLocal(post.published_at));
   const [photoQuery, setPhotoQuery] = useState('');
   const [photoOptions, setPhotoOptions] = useState<{ url: string; credit: string }[]>([]);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -47,6 +74,7 @@ export function PostEditor({ post, categories }: { post: Post; categories: Categ
           title, slug, excerpt, category, content,
           cover_image_url: coverUrl || null,
           cover_image_credit: coverCredit || null,
+          published_at: fromDatetimeLocal(publishedAt),
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -119,6 +147,37 @@ export function PostEditor({ post, categories }: { post: Post; categories: Categ
           <div>
             <label className="label">Excerpt</label>
             <textarea value={excerpt} onChange={(e) => setExcerpt(e.target.value)} rows={2} className="input resize-y" />
+          </div>
+          <div>
+            <label className="label">Published date</label>
+            <div className="flex gap-2 items-center flex-wrap">
+              <input
+                type="datetime-local"
+                value={publishedAt}
+                onChange={(e) => setPublishedAt(e.target.value)}
+                className="input"
+                style={{ maxWidth: 280 }}
+              />
+              <button
+                type="button"
+                onClick={() => setPublishedAt(toDatetimeLocal(post.published_at))}
+                className="btn btn-ghost"
+                style={{ fontSize: 12, padding: '6px 12px' }}
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={() => setPublishedAt(toDatetimeLocal(new Date().toISOString()))}
+                className="btn btn-ghost"
+                style={{ fontSize: 12, padding: '6px 12px' }}
+              >
+                Set to now
+              </button>
+            </div>
+            <p className="text-xs mt-2" style={{ color: 'var(--text-3)' }}>
+              Controls the displayed date on the article and its position in the archive. Stored as UTC; shown in your local time here.
+            </p>
           </div>
           <div className="p-5 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--line)' }}>
             <label className="label">Cover image</label>
