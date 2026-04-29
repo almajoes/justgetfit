@@ -4,6 +4,7 @@ import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { PostCard } from '@/components/PostCard';
 import { Pagination } from '@/components/Pagination';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { getCategoryBySlug, getCategories } from '@/lib/cms';
 import { supabase } from '@/lib/supabase';
 import type { Post } from '@/lib/supabase';
@@ -61,6 +62,12 @@ export default async function CategoryPage({
       <section className="page-with-sidebar">
         <div className="content-grid">
           <div className="content-main">
+            <Breadcrumbs
+              items={[
+                { label: 'Articles', href: '/articles' },
+                { label: cat.name },
+              ]}
+            />
             <div className="hero-pill" style={{ marginBottom: 24 }}>
               <span className="dot" />
               Category · {cat.name}

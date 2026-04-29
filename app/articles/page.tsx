@@ -5,6 +5,7 @@ import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { PostCard } from '@/components/PostCard';
 import { Pagination } from '@/components/Pagination';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { getCategories } from '@/lib/cms';
 
 export const revalidate = 0;
@@ -51,6 +52,12 @@ export default async function ArticlesPage({
       <section className="page-with-sidebar">
         <div className="content-grid">
           <div className="content-main">
+            <Breadcrumbs
+              items={[
+                { label: 'Home', href: '/' },
+                { label: 'Articles' },
+              ]}
+            />
             <div className="hero-pill" style={{ marginBottom: 24 }}>
               <span className="dot" />
               Articles archive

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import type { Post } from '@/lib/supabase';
 import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { getCategories } from '@/lib/cms';
 
 export const revalidate = 0;
@@ -141,6 +142,13 @@ export default async function ArticlePage({ params }: { params: { category: stri
       <section className="page-with-sidebar">
         <div className="content-grid">
           <article className="content-main">
+            <Breadcrumbs
+              items={[
+                { label: 'Articles', href: '/articles' },
+                { label: post.category || 'Article', href: `/articles/${post.category}` },
+                { label: post.title },
+              ]}
+            />
             <div
               style={{
                 display: 'flex',
@@ -251,22 +259,33 @@ export default async function ArticlePage({ params }: { params: { category: stri
                     <Link
                       key={r.id}
                       href={`/articles/${r.category}/${r.slug}`}
-                      style={{ display: 'flex', gap: 10, textDecoration: 'none', color: 'var(--text)' }}
+                      style={{ display: 'flex', flexDirection: 'column', gap: 8, textDecoration: 'none', color: 'var(--text)' }}
                     >
-                      <div
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 8,
-                          flexShrink: 0,
-                          backgroundSize: 'cover',
-                          backgroundPosition: 'center',
-                          background: r.cover_image_url
-                            ? `url('${r.cover_image_url}')`
-                            : CATEGORY_GRADIENTS[r.category?.toLowerCase() ?? ''] || CATEGORY_GRADIENTS.strength,
-                        }}
-                      />
-                      <div style={{ minWidth: 0, flex: 1 }}>
+                      {r.cover_image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={r.cover_image_url}
+                          alt=""
+                          style={{
+                            width: '100%',
+                            height: 'auto',
+                            display: 'block',
+                            borderRadius: 8,
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '100%',
+                            aspectRatio: '16/9',
+                            borderRadius: 8,
+                            background:
+                              CATEGORY_GRADIENTS[r.category?.toLowerCase() ?? ''] ||
+                              CATEGORY_GRADIENTS.strength,
+                          }}
+                        />
+                      )}
+                      <div>
                         <div
                           style={{
                             fontSize: 13,
