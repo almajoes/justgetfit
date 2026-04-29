@@ -68,7 +68,8 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
         if (data.newsletter && data.newsletter.recipient_count > 0) {
           alert(`Published. Newsletter sent to ${data.newsletter.recipient_count} subscribers (${data.newsletter.failed_count} failed).`);
         }
-        router.push(`/articles/${data.postSlug}`);
+        const liveUrl = data.postCategory ? `/articles/${data.postCategory}/${data.postSlug}` : `/articles`;
+        router.push(liveUrl);
         return;
       }
       if (action === 'reject') {

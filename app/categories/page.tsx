@@ -46,7 +46,7 @@ export default async function CategoriesPage() {
           {categories.map((c) => (
             <Link
               key={c.slug}
-              href={`/category/${c.slug}`}
+              href={`/articles/${c.slug}`}
               style={{
                 background: 'var(--bg-1)',
                 border: '1px solid var(--line)',

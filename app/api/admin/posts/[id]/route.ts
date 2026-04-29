@@ -32,7 +32,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: `Slug "${body.slug}" is used by another post` }, { status: 409 });
   }
 
-  const { data: oldPost } = await supabaseAdmin.from('posts').select('slug').eq('id', params.id).maybeSingle();
+  const { data: oldPost } = await supabaseAdmin.from('posts').select('slug, category').eq('id', params.id).maybeSingle();
 
   const { error } = await supabaseAdmin
     .from('posts')
@@ -49,10 +49,19 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     .eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const newCategory = body.category?.trim() || null;
   revalidatePath('/');
   revalidatePath('/articles');
-  revalidatePath(`/articles/${body.slug.trim()}`);
-  if (oldPost && oldPost.slug !== body.slug.trim()) revalidatePath(`/articles/${oldPost.slug}`);
+  if (newCategory) {
+    revalidatePath(`/articles/${newCategory}/${body.slug.trim()}`);
+    revalidatePath(`/articles/${newCategory}`);
+  }
+  if (oldPost && (oldPost.slug !== body.slug.trim() || oldPost.category !== newCategory)) {
+    if (oldPost.category) {
+      revalidatePath(`/articles/${oldPost.category}/${oldPost.slug}`);
+      revalidatePath(`/articles/${oldPost.category}`);
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }
@@ -61,12 +70,15 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const auth = checkAdminAuth();
   if (!auth.ok) return auth.response;
 
-  const { data: post } = await supabaseAdmin.from('posts').select('slug').eq('id', params.id).maybeSingle();
+  const { data: post } = await supabaseAdmin.from('posts').select('slug, category').eq('id', params.id).maybeSingle();
   const { error } = await supabaseAdmin.from('posts').delete().eq('id', params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   revalidatePath('/');
   revalidatePath('/articles');
-  if (post) revalidatePath(`/articles/${post.slug}`);
+  if (post && post.category) {
+    revalidatePath(`/articles/${post.category}/${post.slug}`);
+    revalidatePath(`/articles/${post.category}`);
+  }
   return NextResponse.json({ ok: true });
 }

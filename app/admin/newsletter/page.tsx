@@ -18,13 +18,13 @@ type SendRow = {
   failed_count: number;
   status: string;
   notes: string | null;
-  posts?: { title: string; slug: string } | null;
+  posts?: { title: string; slug: string; category: string | null } | null;
 };
 
 export default async function NewsletterAdminPage() {
   const { data } = await supabaseAdmin
     .from('newsletter_sends')
-    .select('*, posts(title, slug)')
+    .select('*, posts(title, slug, category)')
     .order('sent_at', { ascending: false });
 
   const sends = (data as SendRow[]) || [];
@@ -78,7 +78,7 @@ export default async function NewsletterAdminPage() {
                     </span>
                   ) : s.posts ? (
                     <Link
-                      href={`/articles/${s.posts.slug}`}
+                      href={s.posts.category ? `/articles/${s.posts.category}/${s.posts.slug}` : `/articles`}
                       style={{ color: 'var(--text)', textDecoration: 'none', fontWeight: 500 }}
                     >
                       {s.posts.title}

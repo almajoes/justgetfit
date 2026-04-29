@@ -79,7 +79,7 @@ export default async function AboutPage() {
               <ul className="sidebar-list">
                 {categories.map((c) => (
                   <li key={c.slug}>
-                    <Link href={`/category/${c.slug}`}>
+                    <Link href={`/articles/${c.slug}`}>
                       {c.name} <span className="count">{counts[c.slug] || 0}</span>
                     </Link>
                   </li>

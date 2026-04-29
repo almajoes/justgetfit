@@ -21,20 +21,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Article URLs (one per published post)
   const { data: posts } = await supabase
     .from('posts')
-    .select('slug, updated_at, published_at')
+    .select('slug, category, updated_at, published_at')
     .order('published_at', { ascending: false });
 
-  const postUrls: MetadataRoute.Sitemap = (posts || []).map((p) => ({
-    url: `${SITE_URL}/articles/${p.slug}`,
-    lastModified: new Date(p.updated_at || p.published_at),
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }));
+  const postUrls: MetadataRoute.Sitemap = (posts || [])
+    .filter((p) => p.category) // skip posts without a category — would produce broken URL
+    .map((p) => ({
+      url: `${SITE_URL}/articles/${p.category}/${p.slug}`,
+      lastModified: new Date(p.updated_at || p.published_at),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    }));
 
   // Category URLs (one per category)
   const categories = await getCategories();
   const categoryUrls: MetadataRoute.Sitemap = categories.map((c) => ({
-    url: `${SITE_URL}/category/${c.slug}`,
+    url: `${SITE_URL}/articles/${c.slug}`,
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
     priority: 0.6,

@@ -172,7 +172,7 @@ export function PostEditor({ post, categories }: { post: Post; categories: Categ
         <button onClick={save} disabled={busy !== null} className="btn btn-primary">
           {busy === 'save' ? 'Saving…' : 'Save changes'}
         </button>
-        <a href={`/articles/${post.slug}`} target="_blank" rel="noreferrer" className="btn btn-ghost">View live →</a>
+        <a href={post.category ? `/articles/${post.category}/${post.slug}` : `/articles`} target="_blank" rel="noreferrer" className="btn btn-ghost">View live →</a>
         <button onClick={del} disabled={busy !== null} className="btn btn-danger ml-auto">
           {busy === 'delete' ? 'Deleting…' : 'Delete post'}
         </button>

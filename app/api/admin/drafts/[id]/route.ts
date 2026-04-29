@@ -97,7 +97,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     revalidatePath('/');
     revalidatePath('/articles');
-    revalidatePath(`/articles/${post.slug}`);
+    if (post.category) {
+      revalidatePath(`/articles/${post.category}/${post.slug}`);
+      revalidatePath(`/articles/${post.category}`);
+    }
 
     let newsletterStats: { recipient_count: number; failed_count: number } | null = null;
 
@@ -108,6 +111,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({
       ok: true,
       postSlug: post.slug,
+      postCategory: post.category,
       newsletter: newsletterStats,
     });
   } catch (err) {

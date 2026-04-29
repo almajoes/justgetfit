@@ -123,7 +123,7 @@ export default async function HomePage() {
       <section className="cat-strip">
         <div className="cat-grid">
           {categories.map((c) => (
-            <Link key={c.slug} href={`/category/${c.slug}`} className="cat-tile">
+            <Link key={c.slug} href={`/articles/${c.slug}`} className="cat-tile">
               <div className="cat-tile-icon">{c.icon}</div>
               <div className="cat-tile-name">{c.name}</div>
               <div className="cat-tile-count">

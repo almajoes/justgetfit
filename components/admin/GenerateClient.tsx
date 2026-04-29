@@ -13,12 +13,33 @@ type ProgressItem = {
 
 export function GenerateClient({ unusedTopicCount }: { unusedTopicCount: number }) {
   const router = useRouter();
-  const [count, setCount] = useState(Math.min(unusedTopicCount, 5));
+  const [count, setCount] = useState(Math.max(1, Math.min(unusedTopicCount, 5)));
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<ProgressItem[]>([]);
   const [done, setDone] = useState(false);
+  const [generatingTopics, setGeneratingTopics] = useState(false);
+  const [topicError, setTopicError] = useState<string | null>(null);
 
   const canRun = unusedTopicCount > 0 && count > 0 && count <= unusedTopicCount && !running;
+
+  async function generateTopics() {
+    setGeneratingTopics(true);
+    setTopicError(null);
+    try {
+      const res = await fetch('/api/admin/topics/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: 8 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      router.refresh();
+    } catch (err) {
+      setTopicError(err instanceof Error ? err.message : 'Topic generation failed');
+    } finally {
+      setGeneratingTopics(false);
+    }
+  }
 
   async function runDraftBatch() {
     setRunning(true);
@@ -67,59 +88,80 @@ export function GenerateClient({ unusedTopicCount }: { unusedTopicCount: number 
         Generates AI-drafted articles from your topic queue. Each draft lands in <Link href="/admin/drafts" style={{ color: 'var(--neon)' }}>Drafts</Link> for review before publishing. Each article takes ~30–60 seconds. Keep this tab open while generating.
       </p>
 
-      {unusedTopicCount === 0 && (
+      {unusedTopicCount === 0 ? (
         <div
           style={{
-            background: 'rgba(255,184,77,0.08)',
-            border: '1px solid rgba(255,184,77,0.25)',
+            background: 'var(--bg-1)',
+            border: '1px solid var(--line)',
+            borderRadius: 12,
+            padding: 32,
+            marginBottom: 24,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 36, marginBottom: 12 }}>💡</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>No topics in the queue</h2>
+          <p style={{ color: 'var(--text-2)', marginBottom: 24, fontSize: 14, lineHeight: 1.6, maxWidth: 480, margin: '0 auto 24px' }}>
+            Add some topic ideas before you can generate articles. The fastest way is to let Claude suggest a fresh batch — they'll cover all 8 categories and avoid duplicates.
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={generateTopics}
+              disabled={generatingTopics}
+              className="btn btn-primary"
+              style={{ padding: '12px 24px', fontSize: 14 }}
+            >
+              {generatingTopics ? 'Generating 8 topics…' : '✨ Generate 8 topics with AI'}
+            </button>
+            <Link
+              href="/admin/topics"
+              className="btn btn-ghost"
+              style={{ padding: '12px 24px', fontSize: 14, textDecoration: 'none', display: 'inline-block' }}
+            >
+              Or add manually →
+            </Link>
+          </div>
+          {topicError && (
+            <p style={{ marginTop: 16, fontSize: 13, color: '#ff6b6b' }}>{topicError}</p>
+          )}
+        </div>
+      ) : (
+        <div
+          style={{
+            background: 'var(--bg-1)',
+            border: '1px solid var(--line)',
             borderRadius: 12,
             padding: 24,
             marginBottom: 24,
-            color: '#ffb84d',
-            lineHeight: 1.6,
           }}
         >
-          <strong>No unused topics in the queue.</strong> Add topics at <Link href="/admin/topics" style={{ color: '#ffb84d', textDecoration: 'underline' }}>Topic queue</Link> first, or wait for the weekly cron to auto-generate fresh topics.
-        </div>
-      )}
-
-      <div
-        style={{
-          background: 'var(--bg-1)',
-          border: '1px solid var(--line)',
-          borderRadius: 12,
-          padding: 24,
-          marginBottom: 24,
-        }}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <label className="label">How many drafts to generate?</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <input
-              type="number"
-              className="input"
-              value={count}
-              min={1}
-              max={Math.max(1, unusedTopicCount)}
-              onChange={(e) =>
-                setCount(Math.max(1, Math.min(unusedTopicCount, parseInt(e.target.value) || 1)))
-              }
-              disabled={running || unusedTopicCount === 0}
-              style={{ maxWidth: 160 }}
-            />
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {[3, 5, 10, 25].filter((n) => n <= unusedTopicCount).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setCount(n)}
-                  disabled={running}
-                  style={presetButton(count === n, running)}
-                >
-                  {n}
-                </button>
-              ))}
-              {unusedTopicCount > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <label className="label">How many drafts to generate?</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <input
+                type="number"
+                className="input"
+                value={count}
+                min={1}
+                max={unusedTopicCount}
+                onChange={(e) =>
+                  setCount(Math.max(1, Math.min(unusedTopicCount, parseInt(e.target.value) || 1)))
+                }
+                disabled={running}
+                style={{ maxWidth: 160 }}
+              />
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {[3, 5, 10, 25].filter((n) => n <= unusedTopicCount).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setCount(n)}
+                    disabled={running}
+                    style={presetButton(count === n, running)}
+                  >
+                    {n}
+                  </button>
+                ))}
                 <button
                   type="button"
                   onClick={() => setCount(unusedTopicCount)}
@@ -128,25 +170,25 @@ export function GenerateClient({ unusedTopicCount }: { unusedTopicCount: number 
                 >
                   All ({unusedTopicCount})
                 </button>
-              )}
+              </div>
             </div>
+            <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 8 }}>
+              {unusedTopicCount} unused topic{unusedTopicCount === 1 ? '' : 's'} available. Each article takes ~30–60 seconds.
+            </p>
           </div>
-          <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 8 }}>
-            {unusedTopicCount} unused topic{unusedTopicCount === 1 ? '' : 's'} available. Each article takes ~30–60 seconds.
-          </p>
-        </div>
 
-        <button
-          onClick={runDraftBatch}
-          disabled={!canRun}
-          className="btn btn-primary"
-          style={{ padding: '12px 24px', fontSize: 14 }}
-        >
-          {running
-            ? `Generating ${progress.filter((p) => p.status !== 'pending').length} of ${count}…`
-            : `Generate ${count} draft${count === 1 ? '' : 's'}`}
-        </button>
-      </div>
+          <button
+            onClick={runDraftBatch}
+            disabled={!canRun}
+            className="btn btn-primary"
+            style={{ padding: '12px 24px', fontSize: 14 }}
+          >
+            {running
+              ? `Generating ${progress.filter((p) => p.status !== 'pending').length} of ${count}…`
+              : `Generate ${count} draft${count === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      )}
 
       {progress.length > 0 && <ProgressList items={progress} />}
 

@@ -285,7 +285,9 @@ export async function sendNewsletterEmail(opts: {
   if (!resend) return { ok: false, error: 'RESEND_API_KEY not configured' };
 
   const unsubUrl = `${siteUrl}/api/subscribe/unsubscribe?token=${encodeURIComponent(opts.unsubscribeToken)}`;
-  const articleUrl = `${siteUrl}/articles/${opts.postSlug}`;
+  const articleUrl = opts.postCategory
+    ? `${siteUrl}/articles/${opts.postCategory}/${opts.postSlug}`
+    : `${siteUrl}/articles`;
 
   const cover = opts.postCoverUrl
     ? `<img src="${opts.postCoverUrl}" alt="" style="width:100%;height:auto;display:block;border-radius:12px;margin:0 0 28px;" />`

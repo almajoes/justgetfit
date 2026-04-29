@@ -34,7 +34,7 @@ export function PostCard({ post }: { post: Post }) {
     : { background: fallbackBg };
 
   return (
-    <Link href={`/articles/${post.slug}`} className="post-card">
+    <Link href={`/articles/${post.category}/${post.slug}`} className="post-card">
       <div className="post-img" style={imgStyle}>
         {post.category && <span className="post-cat-badge">{post.category}</span>}
       </div>
