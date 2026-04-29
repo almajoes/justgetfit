@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { checkAdminAuth } from '@/lib/auth';
 
 export const metadata = {
   title: 'Admin',
@@ -35,9 +34,6 @@ const SECTIONS: { heading: string; links: { href: string; label: string; icon: s
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const auth = checkAdminAuth();
-  if (!auth.ok) return auth.response as unknown as React.ReactElement;
-
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-0)' }}>
       <aside
