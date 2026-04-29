@@ -7,11 +7,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: `${site.name} — ${site.tagline}`, template: `%s · ${site.name}` },
     description: site.description,
-    metadataBase: new URL('https://justgetfit.com'),
+    metadataBase: new URL('https://justgetfit.org'),
     openGraph: {
       title: `${site.name} — ${site.tagline}`,
       description: site.description,
-      url: 'https://justgetfit.com',
+      url: 'https://justgetfit.org',
       siteName: site.name,
       type: 'website',
     },
