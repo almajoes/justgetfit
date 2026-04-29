@@ -621,6 +621,40 @@ h1.hero-h, .hero-h {
 .input::placeholder { color: var(--text-3); }
 textarea.input { resize: vertical; min-height: 140px; }
 
+/* SELECT (dropdown) — apply dark theme to native select element */
+select.input,
+.input[type="select"],
+select {
+  background-color: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 12px 40px 12px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  /* Custom arrow */
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23c4ff3d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='3 5 6 8 9 5'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px;
+}
+select.input:focus,
+select:focus {
+  border-color: var(--neon);
+  outline: none;
+}
+/* Style the dropdown options (limited browser support but works in Chrome/Edge) */
+select option {
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 14px;
+  padding: 8px;
+}
+
 /* RESPONSIVE */
 @media (max-width: 1100px) {
   .content-grid { grid-template-columns: 1fr; gap: 32px; }
