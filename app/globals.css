@@ -801,8 +801,19 @@ select option {
   .post-grid, .post-grid-2col { grid-template-columns: 1fr; }
   .news-card { padding: 32px 24px; }
   .footer-grid { grid-template-columns: 1fr; gap: 32px; }
-  .news-form { flex-direction: column; border-radius: 16px; padding: 8px; }
-  .news-form button { padding: 14px; }
+  .news-form {
+    flex-direction: column;
+    border-radius: 8px;
+    padding: 8px;
+  }
+  .news-form input {
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .news-form button {
+    padding: 14px;
+    border-radius: 6px;
+  }
   .pillar-grid { grid-template-columns: 1fr; }
   .partners-grid { grid-template-columns: 1fr; }
 }
