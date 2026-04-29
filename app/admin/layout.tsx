@@ -112,6 +112,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span>↗</span>
             <span>View site</span>
           </Link>
+          <a
+            href="/admin/logout"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '8px 12px',
+              borderRadius: 8,
+              fontSize: 13,
+              color: 'var(--text-3)',
+              textDecoration: 'none',
+            }}
+          >
+            <span>🔒</span>
+            <span>Log out</span>
+          </a>
         </nav>
       </aside>
       <main style={{ flex: 1, minWidth: 0 }}>{children}</main>

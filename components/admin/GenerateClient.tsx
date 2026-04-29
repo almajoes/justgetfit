@@ -227,7 +227,9 @@ export function GenerateClient({
             >
               {running
                 ? `Generating ${progress.filter((p) => p.status !== 'pending').length} of ${count}…`
-                : `Generate ${count} ${mode === 'backfill' ? 'and publish' : 'draft'}${count === 1 ? '' : 's'}`}
+                : mode === 'backfill'
+                ? `Generate ${count} and publish`
+                : `Generate ${count} draft${count === 1 ? '' : 's'}`}
             </button>
           </div>
 
