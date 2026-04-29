@@ -4,7 +4,7 @@ import { SiteFooter } from '@/components/SiteFooter';
 import { getCategories } from '@/lib/cms';
 import { supabase } from '@/lib/supabase';
 
-export const revalidate = 60;
+export const revalidate = 0;
 
 export const metadata = {
   title: 'Categories',

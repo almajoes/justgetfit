@@ -8,7 +8,7 @@ import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { getCategories } from '@/lib/cms';
 
-export const revalidate = 60;
+export const revalidate = 0;
 
 async function getPost(slug: string): Promise<Post | null> {
   const { data } = await supabase.from('posts').select('*').eq('slug', slug).maybeSingle();

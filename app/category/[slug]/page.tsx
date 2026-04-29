@@ -7,7 +7,7 @@ import { getCategoryBySlug, getCategories } from '@/lib/cms';
 import { supabase } from '@/lib/supabase';
 import type { Post } from '@/lib/supabase';
 
-export const revalidate = 60;
+export const revalidate = 0;
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
   const cat = await getCategoryBySlug(params.slug);

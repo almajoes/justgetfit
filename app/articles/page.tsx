@@ -6,7 +6,7 @@ import { SiteFooter } from '@/components/SiteFooter';
 import { PostCard } from '@/components/PostCard';
 import { getCategories } from '@/lib/cms';
 
-export const revalidate = 60;
+export const revalidate = 0;
 export const metadata = { title: 'Articles' };
 
 async function getPosts(): Promise<Post[]> {

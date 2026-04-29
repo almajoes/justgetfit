@@ -2,13 +2,30 @@ import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import type { Post } from '@/lib/supabase';
 
+// Force fresh data on every request - never cache
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export default async function AdminPostsPage() {
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('posts')
     .select('*')
     .order('published_at', { ascending: false });
+
+  if (error) {
+    console.error('[admin/posts] Query failed:', error);
+    return (
+      <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+        <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>Published posts</h1>
+        <div style={{ padding: 16, background: 'rgba(255,107,107,0.1)', border: '1px solid #ff6b6b', borderRadius: 12, color: '#ff6b6b' }}>
+          <strong>Database error:</strong> {error.message}
+          {error.hint && <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>Hint: {error.hint}</div>}
+        </div>
+      </div>
+    );
+  }
+
   const posts = (data ?? []) as Post[];
 
   return (

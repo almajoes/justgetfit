@@ -6,7 +6,7 @@ import { getHomeHero, getCategories } from '@/lib/cms';
 import { supabase } from '@/lib/supabase';
 import type { Post } from '@/lib/supabase';
 
-export const revalidate = 60;
+export const revalidate = 0;
 
 async function getRecentPosts(limit = 6): Promise<Post[]> {
   const { data } = await supabase
