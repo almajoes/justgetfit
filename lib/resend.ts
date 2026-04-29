@@ -136,3 +136,91 @@ export async function sendContactNotification(opts: {
     return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
+
+/**
+ * Convert a simple Markdown subset to HTML for broadcast emails.
+ * Supports: paragraphs, **bold**, *italic*, [text](url), ## h2, ### h3, > blockquote, lists.
+ * Keeps it simple — for richer needs, the admin can paste raw HTML in the body.
+ */
+function markdownToHtml(md: string): string {
+  let html = md.trim();
+
+  // Escape HTML special chars first (so user-typed < and > don't break things)
+  html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Headings
+  html = html.replace(/^### (.+)$/gm, '<h3 style="font-size:18px;font-weight:700;margin:24px 0 12px;color:#0a0a0d;">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 style="font-size:22px;font-weight:700;margin:28px 0 14px;color:#0a0a0d;">$1</h2>');
+
+  // Blockquotes
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid #c4ff3d;padding:8px 16px;margin:16px 0;color:#444;font-style:italic;">$1</blockquote>');
+
+  // Bold + italic
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+
+  // Links [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:#0a0a0d;text-decoration:underline;">$1</a>');
+
+  // Unordered lists
+  html = html.replace(/(^- .+(?:\n- .+)*)/gm, (match) => {
+    const items = match.split('\n').map((l) => `<li style="margin:4px 0;">${l.replace(/^- /, '')}</li>`).join('');
+    return `<ul style="margin:16px 0;padding-left:24px;">${items}</ul>`;
+  });
+
+  // Paragraphs (split on blank lines, wrap non-block content)
+  const blocks = html.split(/\n\s*\n/);
+  html = blocks.map((b) => {
+    const trimmed = b.trim();
+    if (!trimmed) return '';
+    // Already a block element? Don't wrap.
+    if (/^<(h[1-6]|ul|ol|blockquote|p|div)/.test(trimmed)) return trimmed;
+    return `<p style="margin:0 0 16px;line-height:1.65;color:#1a1a1a;">${trimmed.replace(/\n/g, '<br/>')}</p>`;
+  }).join('\n');
+
+  return html;
+}
+
+/**
+ * Send an arbitrary broadcast email (announcement, off-cycle message, etc.) to one subscriber.
+ * Each email gets the subscriber's unique unsubscribe link.
+ *
+ * Used by /api/admin/broadcast for ad-hoc blasts to the full list, and by
+ * /api/admin/broadcast/test for previewing before send.
+ */
+export async function sendBroadcastEmail(opts: {
+  email: string;
+  unsubscribeToken: string;
+  subject: string;
+  bodyMarkdown: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!resend) return { ok: false, error: 'RESEND_API_KEY not configured' };
+
+  const unsubUrl = `${siteUrl}/api/subscribe/unsubscribe?token=${encodeURIComponent(opts.unsubscribeToken)}`;
+  const bodyHtml = markdownToHtml(opts.bodyMarkdown);
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: opts.email,
+      subject: opts.subject,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a; background: #fff;">
+          ${bodyHtml}
+          <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;" />
+          <p style="font-size: 12px; color: #999; line-height: 1.6;">
+            You got this email because you subscribed to Just Get Fit. <br/>
+            <a href="${unsubUrl}" style="color: #999;">Unsubscribe in one click</a>
+          </p>
+          <p style="font-size: 11px; color: #bbb; margin-top: 12px;">
+            Just Get Fit — Stronger. Every day.<br/>
+            Nothing here is medical advice.
+          </p>
+        </div>
+      `,
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}

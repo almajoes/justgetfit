@@ -102,7 +102,10 @@ export type Subscriber = {
 
 export type NewsletterSend = {
   id: string;
-  post_id: string;
+  post_id: string | null;
+  kind: 'post' | 'broadcast';
+  subject: string | null;
+  body_markdown: string | null;
   sent_at: string;
   recipient_count: number;
   failed_count: number;
