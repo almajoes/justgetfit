@@ -12,7 +12,7 @@ export default async function AdminPostsPage() {
   const posts = (data ?? []) as Post[];
 
   return (
-    <div>
+    <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
       <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--neon)' }}>Admin</p>
       <h1 className="text-4xl md:text-5xl font-bold mb-2" style={{ letterSpacing: '-0.02em' }}>Published posts</h1>
       <p className="mb-8" style={{ color: 'var(--text-2)' }}>{posts.length} posts</p>
