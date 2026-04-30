@@ -8,11 +8,13 @@ export const fetchCache = 'force-no-store';
 export const metadata = { title: 'Broadcast · Admin' };
 
 export default async function BroadcastAdminPage() {
-  // Count confirmed subscribers so the UI can show how many people will get this
-  const { count: confirmedCount } = await supabaseAdmin
+  // Pull all confirmed subscribers (id, email, source) for the audience picker.
+  // Order by most recent signup so the newest are at the top.
+  const { data: subs } = await supabaseAdmin
     .from('subscribers')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'confirmed');
+    .select('id, email, source, subscribed_at')
+    .eq('status', 'confirmed')
+    .order('subscribed_at', { ascending: false });
 
-  return <BroadcastClient confirmedCount={confirmedCount || 0} />;
+  return <BroadcastClient subscribers={subs || []} />;
 }
