@@ -794,6 +794,8 @@ select option {
 @media (max-width: 900px) {
   .site-nav { padding: 12px 20px; }
   .jgf-logo { width: 56px; height: 36px; }
+  /* Footer logo stays larger than the nav logo on mobile — tagline needs to be readable */
+  .footer-brand .jgf-logo { width: 140px; height: 90px; }
   .site-nav .nav-menu-desktop { display: none; }
   .site-nav .nav-mobile-actions { display: flex; }
   .hero { padding: 60px 20px 40px; }
