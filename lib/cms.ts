@@ -30,6 +30,12 @@ const SITE_DEFAULTS: SiteSettings = {
   description: 'Evidence-based fitness writing.',
   contact_email: 'hello@justgetfit.org',
   newsletter_enabled: true,
+  // SEO fields — all optional; empty strings mean "use computed defaults"
+  seo_title: '',
+  seo_description: '',
+  keywords: '',
+  og_title: '',
+  og_description: '',
 };
 
 const FOOTER_DEFAULTS: FooterSettings = {

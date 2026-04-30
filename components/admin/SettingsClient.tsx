@@ -45,8 +45,11 @@ export function SettingsClient({ site, footer }: { site: SiteSettings; footer: F
           <input className="input" value={siteVal.tagline} onChange={(e) => setSiteVal({ ...siteVal, tagline: e.target.value })} />
         </div>
         <div>
-          <label className="label">Meta description (SEO)</label>
+          <label className="label">Site description</label>
           <textarea className="input" rows={2} value={siteVal.description} onChange={(e) => setSiteVal({ ...siteVal, description: e.target.value })} />
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            Used as the default meta description and OG description if the SEO overrides below are empty.
+          </p>
         </div>
         <div>
           <label className="label">Contact email (where contact form messages go)</label>
@@ -60,6 +63,76 @@ export function SettingsClient({ site, footer }: { site: SiteSettings; footer: F
           />
           Newsletter signups enabled
         </label>
+      </div>
+
+      <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>SEO &amp; social</h2>
+      <div style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12, padding: 24, marginBottom: 32, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <p className="text-xs" style={{ color: 'var(--text-3)', marginTop: 0, marginBottom: 4, lineHeight: 1.6 }}>
+          These override the defaults computed from your site name, tagline, and description above.
+          Leave any field empty to use the computed default.
+        </p>
+        <div>
+          <label className="label">SEO title (homepage)</label>
+          <input
+            className="input"
+            value={siteVal.seo_title || ''}
+            onChange={(e) => setSiteVal({ ...siteVal, seo_title: e.target.value })}
+            placeholder={`${siteVal.name} — ${siteVal.tagline}`}
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            What appears in the browser tab and Google search result for the homepage. Aim for under 60 characters. Sub-pages use their own titles plus &ldquo;· {siteVal.name}&rdquo;.
+          </p>
+        </div>
+        <div>
+          <label className="label">Meta description</label>
+          <textarea
+            className="input"
+            rows={2}
+            value={siteVal.seo_description || ''}
+            onChange={(e) => setSiteVal({ ...siteVal, seo_description: e.target.value })}
+            placeholder={siteVal.description}
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            The snippet under your title in Google search results. Aim for 140&ndash;160 characters.
+          </p>
+        </div>
+        <div>
+          <label className="label">Meta keywords</label>
+          <input
+            className="input"
+            value={siteVal.keywords || ''}
+            onChange={(e) => setSiteVal({ ...siteVal, keywords: e.target.value })}
+            placeholder="fitness, strength training, hypertrophy, nutrition"
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            Comma-separated. Modern search engines mostly ignore this field but some smaller engines and AdSense still read it.
+          </p>
+        </div>
+        <div>
+          <label className="label">Open Graph title (social shares)</label>
+          <input
+            className="input"
+            value={siteVal.og_title || ''}
+            onChange={(e) => setSiteVal({ ...siteVal, og_title: e.target.value })}
+            placeholder={siteVal.seo_title || `${siteVal.name} — ${siteVal.tagline}`}
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            Title shown when your homepage is shared on Facebook, Twitter/X, LinkedIn, etc. If empty, uses the SEO title.
+          </p>
+        </div>
+        <div>
+          <label className="label">Open Graph description (social shares)</label>
+          <textarea
+            className="input"
+            rows={2}
+            value={siteVal.og_description || ''}
+            onChange={(e) => setSiteVal({ ...siteVal, og_description: e.target.value })}
+            placeholder={siteVal.seo_description || siteVal.description}
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            Description shown on social shares of the homepage. Often punchier than the search-engine description.
+          </p>
+        </div>
       </div>
 
       <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Footer</h2>

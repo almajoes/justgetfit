@@ -53,19 +53,33 @@ function parseMetaTagsToMetadata(html: string): Pick<Metadata, 'verification' | 
 
 export async function generateMetadata(): Promise<Metadata> {
   const [site, siteCode] = await Promise.all([getSiteSettings(), getSiteCode()]);
-  const fullTitle = `${site.name} — ${site.tagline}`;
   const parsedMeta = parseMetaTagsToMetadata(siteCode.meta_tags);
 
+  // Compute the values we'll actually use, with cascading fallbacks:
+  // CMS-set value (if non-empty) → computed default → bare default
+  const computedTitle = `${site.name} — ${site.tagline}`;
+  const homeTitle = site.seo_title?.trim() || computedTitle;
+  const description = site.seo_description?.trim() || site.description;
+  const ogTitle = site.og_title?.trim() || homeTitle;
+  const ogDescription = site.og_description?.trim() || description;
+
+  // Keywords: CMS comma-separated string overrides the hardcoded defaults.
+  // Empty CMS value = use built-in defaults.
+  const defaultKeywords = ['fitness', 'strength training', 'hypertrophy', 'nutrition', 'recovery', 'mobility', 'evidence-based fitness'];
+  const keywords = site.keywords?.trim()
+    ? site.keywords.split(',').map((k) => k.trim()).filter(Boolean)
+    : defaultKeywords;
+
   return {
-    title: { default: fullTitle, template: `%s · ${site.name}` },
-    description: site.description,
+    title: { default: homeTitle, template: `%s · ${site.name}` },
+    description,
     metadataBase: new URL(SITE_URL),
     alternates: { canonical: '/' },
-    keywords: ['fitness', 'strength training', 'hypertrophy', 'nutrition', 'recovery', 'mobility', 'evidence-based fitness'],
+    keywords,
     authors: [{ name: site.name }],
     openGraph: {
-      title: fullTitle,
-      description: site.description,
+      title: ogTitle,
+      description: ogDescription,
       url: SITE_URL,
       siteName: site.name,
       type: 'website',
@@ -81,8 +95,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: 'summary_large_image',
-      title: fullTitle,
-      description: site.description,
+      title: ogTitle,
+      description: ogDescription,
       images: [`${SITE_URL}/og-image.png`],
     },
     robots: {

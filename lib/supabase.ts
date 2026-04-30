@@ -132,6 +132,12 @@ export type SiteSettings = {
   description: string;
   contact_email: string;
   newsletter_enabled: boolean;
+  // SEO overrides (all optional — empty/missing values fall back to sensible defaults)
+  seo_title?: string;            // overrides home page <title>; falls back to "${name} — ${tagline}"
+  seo_description?: string;      // overrides meta description; falls back to `description`
+  keywords?: string;             // comma-separated list for <meta name="keywords">
+  og_title?: string;             // Open Graph title (social shares); falls back to seo_title or name+tagline
+  og_description?: string;       // Open Graph description; falls back to seo_description or description
 };
 
 export type FooterSettings = {

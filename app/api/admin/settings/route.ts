@@ -28,10 +28,10 @@ export async function PUT(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Both site + footer affect every page — revalidate broadly
-  ['/', '/about', '/contact', '/subscribe', '/partners', '/articles', '/categories'].forEach((p) =>
-    revalidatePath(p)
-  );
+  // Site/footer settings affect metadata in the root layout (which touches
+  // EVERY page). Use revalidatePath('/', 'layout') to invalidate the entire
+  // tree so titles, meta descriptions, OG tags, etc. update everywhere.
+  revalidatePath('/', 'layout');
 
   return NextResponse.json({ ok: true });
 }
