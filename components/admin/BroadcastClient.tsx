@@ -96,9 +96,6 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
     });
   }
 
-  const recipientCount = recipients.length;
-  const canSend = subject.trim().length > 0 && body.trim().length > 0 && sending === 'none';
-
   // For the picker, filter by search
   const visiblePickerSubs = useMemo(() => {
     if (!pickerSearch.trim()) return subscribers;
