@@ -13,6 +13,9 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'pending' | 'unsubscribed'>('all');
   const [page, setPage] = useState(1);
+  // Bulk-select state. Set of subscriber IDs the user has ticked in the table.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const filtered = subscribers.filter((s) => {
     if (filter !== 'all' && s.status !== filter) return false;
@@ -21,12 +24,10 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  // Clamp page if filter/search shrunk the list below the current page
   const safePage = Math.min(page, totalPages);
   const start = (safePage - 1) * PAGE_SIZE;
   const visible = filtered.slice(start, start + PAGE_SIZE);
 
-  // Reset to page 1 when filter or search changes
   function setFilterAndReset(f: typeof filter) {
     setFilter(f);
     setPage(1);
@@ -36,8 +37,72 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
     setPage(1);
   }
 
-  async function handleAction(id: string, action: 'resend_confirmation' | 'unsubscribe' | 'delete') {
-    if (action === 'delete' && !confirm('Delete this subscriber permanently?')) return;
+  // === Bulk selection helpers ===
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function selectAllVisible() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      visible.forEach((s) => next.add(s.id));
+      return next;
+    });
+  }
+  function selectAllFiltered() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      filtered.forEach((s) => next.add(s.id));
+      return next;
+    });
+  }
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  // Whether the current page is fully selected (controls the header checkbox state)
+  const allVisibleSelected = visible.length > 0 && visible.every((s) => selected.has(s.id));
+  const someVisibleSelected = visible.some((s) => selected.has(s.id));
+
+  async function bulkRelabel() {
+    if (selected.size === 0) return;
+    const label = window.prompt(
+      `Set group label for ${selected.size} subscriber${selected.size === 1 ? '' : 's'}?\n\nLeave empty to clear the label.`,
+      ''
+    );
+    if (label === null) return; // user cancelled the prompt
+    setBulkBusy(true);
+    try {
+      const res = await fetch('/api/admin/subscribers/bulk-relabel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selected), group_label: label }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Failed: ${data.error || res.statusText}`);
+      } else {
+        alert(`Updated ${data.updated} subscriber${data.updated === 1 ? '' : 's'}.`);
+        clearSelection();
+        router.refresh();
+      }
+    } catch (err) {
+      alert(`Error: ${err instanceof Error ? err.message : 'Unknown'}`);
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function handleAction(
+    id: string,
+    action: 'resend_confirmation' | 'confirm' | 'unsubscribe' | 'delete'
+  ) {
+    if (action === 'delete' && !confirm('Delete this subscriber permanently? This is a hard delete — to keep their record on the list use Unsubscribe instead.')) return;
+    if (action === 'confirm' && !confirm('Manually mark this subscriber as confirmed without sending the confirmation email?')) return;
     const res = await fetch(`/api/admin/subscribers/${id}`, {
       method: action === 'delete' ? 'DELETE' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -110,22 +175,26 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
           className="input"
           style={{ flex: 1, minWidth: 240, maxWidth: 360 }}
         />
-        {(['all', 'confirmed', 'pending', 'unsubscribed'] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilterAndReset(f)}
-            className="btn btn-ghost"
-            style={{
-              padding: '8px 14px',
-              fontSize: 13,
-              background: filter === f ? 'var(--neon)' : undefined,
-              color: filter === f ? '#000' : undefined,
-              borderColor: filter === f ? 'var(--neon)' : undefined,
-            }}
-          >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
+        {(['all', 'confirmed', 'pending', 'unsubscribed'] as const).map((f) => {
+          const count = f === 'all' ? stats.total : stats[f];
+          return (
+            <button
+              key={f}
+              onClick={() => setFilterAndReset(f)}
+              className="btn btn-ghost"
+              style={{
+                padding: '8px 14px',
+                fontSize: 13,
+                background: filter === f ? 'var(--neon)' : undefined,
+                color: filter === f ? '#000' : undefined,
+                borderColor: filter === f ? 'var(--neon)' : undefined,
+              }}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}{' '}
+              <span style={{ opacity: 0.7, fontWeight: 400 }}>({count})</span>
+            </button>
+          );
+        })}
         <Link
           href="/admin/subscribers/import"
           className="btn btn-ghost"
@@ -138,13 +207,83 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
         </button>
       </div>
 
+      {/* Bulk action bar — appears when at least one subscriber is selected */}
+      {selected.size > 0 && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '12px 16px',
+            background: 'rgba(196,255,61,0.07)',
+            border: '1px solid rgba(196,255,61,0.3)',
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+            {selected.size} selected
+          </span>
+          <span style={{ flex: 1 }} />
+          {filtered.length > visible.length && !filtered.every((s) => selected.has(s.id)) && (
+            <button
+              onClick={selectAllFiltered}
+              className="btn btn-ghost"
+              style={{ padding: '6px 12px', fontSize: 12 }}
+            >
+              Select all {filtered.length} matching
+            </button>
+          )}
+          <button
+            onClick={bulkRelabel}
+            disabled={bulkBusy}
+            className="btn btn-ghost"
+            style={{ padding: '6px 12px', fontSize: 12, color: 'var(--neon)' }}
+          >
+            {bulkBusy ? 'Updating…' : 'Set group label'}
+          </button>
+          <button
+            onClick={clearSelection}
+            className="btn btn-ghost"
+            style={{ padding: '6px 12px', fontSize: 12 }}
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
+
       <div style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.03)', textAlign: 'left' }}>
+              <th style={{ ...th, width: 36, paddingRight: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  // Indeterminate state when some but not all rows on this page are selected
+                  ref={(el) => {
+                    if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected;
+                  }}
+                  onChange={() => {
+                    if (allVisibleSelected) {
+                      // Deselect just the current page
+                      setSelected((prev) => {
+                        const next = new Set(prev);
+                        visible.forEach((s) => next.delete(s.id));
+                        return next;
+                      });
+                    } else {
+                      selectAllVisible();
+                    }
+                  }}
+                  style={{ accentColor: 'var(--neon)', cursor: 'pointer' }}
+                  title="Toggle all on this page"
+                />
+              </th>
               <th style={th}>Email</th>
               <th style={th}>Status</th>
-              <th style={th}>Source</th>
+              <th style={th}>Group</th>
               <th style={th}>Subscribed</th>
               <th style={th}>Last Sent</th>
               <th style={{ ...th, textAlign: 'right' }}>Actions</th>
@@ -152,7 +291,15 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
           </thead>
           <tbody>
             {visible.map((s) => (
-              <tr key={s.id} style={{ borderTop: '1px solid var(--line)' }}>
+              <tr key={s.id} style={{ borderTop: '1px solid var(--line)', background: selected.has(s.id) ? 'rgba(196,255,61,0.04)' : undefined }}>
+                <td style={{ ...td, width: 36, paddingRight: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(s.id)}
+                    onChange={() => toggleOne(s.id)}
+                    style={{ accentColor: 'var(--neon)', cursor: 'pointer' }}
+                  />
+                </td>
                 <td style={td}>{s.email}</td>
                 <td style={td}>
                   <StatusBadge status={s.status} />
@@ -162,16 +309,38 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
                 <td style={{ ...td, color: 'var(--text-3)', fontSize: 12 }}>{s.last_sent_at ? formatDate(s.last_sent_at) : '—'}</td>
                 <td style={{ ...td, textAlign: 'right' }}>
                   {s.status === 'pending' && (
-                    <button onClick={() => handleAction(s.id, 'resend_confirmation')} style={actionBtn}>
-                      Resend
+                    <>
+                      <button
+                        onClick={() => handleAction(s.id, 'confirm')}
+                        style={{ ...actionBtn, color: 'var(--neon)' }}
+                        title="Manually mark this subscriber as confirmed without sending the email"
+                      >
+                        Confirm
+                      </button>
+                      <button onClick={() => handleAction(s.id, 'resend_confirmation')} style={actionBtn}>
+                        Resend
+                      </button>
+                    </>
+                  )}
+                  {s.status === 'unsubscribed' && (
+                    <button
+                      onClick={() => handleAction(s.id, 'confirm')}
+                      style={{ ...actionBtn, color: 'var(--neon)' }}
+                      title="Move this subscriber back to confirmed (use only if they explicitly asked to be re-subscribed)"
+                    >
+                      Re-subscribe
                     </button>
                   )}
-                  {s.status !== 'unsubscribed' && (
+                  {s.status === 'confirmed' && (
                     <button onClick={() => handleAction(s.id, 'unsubscribe')} style={actionBtn}>
                       Unsub
                     </button>
                   )}
-                  <button onClick={() => handleAction(s.id, 'delete')} style={{ ...actionBtn, color: '#ff6b6b' }}>
+                  <button
+                    onClick={() => handleAction(s.id, 'delete')}
+                    style={{ ...actionBtn, color: '#ff6b6b' }}
+                    title="Hard delete — removes the row permanently. Prefer Unsub to keep the record."
+                  >
                     Delete
                   </button>
                 </td>
@@ -181,7 +350,11 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
         </table>
         {visible.length === 0 && (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-3)' }}>
-            No subscribers match.
+            {filter === 'unsubscribed'
+              ? 'No unsubscribed subscribers yet — nobody has opted out.'
+              : filter === 'pending'
+              ? 'No pending subscribers — everyone has confirmed.'
+              : 'No subscribers match.'}
           </div>
         )}
       </div>

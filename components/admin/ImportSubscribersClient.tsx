@@ -14,6 +14,89 @@ type ParsedList = {
   duplicatesInInput: number; // count of dupes within the pasted text itself
 };
 
+/**
+ * Extract emails from a raw CSV/TSV/text file into a newline-separated string.
+ *
+ * Strategy:
+ *   1. If the first row looks like a header (contains "email" case-insensitive in any column),
+ *      use that column index for every following row.
+ *   2. Otherwise, scan EVERY cell on EVERY row and keep anything that looks like an email.
+ *
+ * Handles:
+ *   - Mailchimp / Substack / ConvertKit exports (header + email column + extra columns)
+ *   - Plain single-column lists (just emails)
+ *   - TSV (tab-separated) and SSV (semicolon-separated) — common in non-US locales
+ *   - Quoted fields like "Last, First",alice@x.com (treats quoted commas as part of the value)
+ */
+function extractEmailsFromCSV(raw: string): string {
+  // Split into lines, ignore blank lines
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return '';
+
+  // Detect the field separator: pick whichever of comma/tab/semicolon appears most in the first line
+  const first = lines[0];
+  const counts: Record<string, number> = {
+    ',': (first.match(/,/g) || []).length,
+    '\t': (first.match(/\t/g) || []).length,
+    ';': (first.match(/;/g) || []).length,
+  };
+  const sep = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] as string) || ',';
+
+  // Parse a single line into fields, respecting double-quoted values containing the separator
+  const parseLine = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === sep && !inQuotes) {
+        out.push(cur);
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out.map((s) => s.trim().replace(/^"|"$/g, ''));
+  };
+
+  const headerCells = parseLine(lines[0]);
+  const emailColIdx = headerCells.findIndex((c) => /email/i.test(c));
+
+  const collected: string[] = [];
+
+  if (emailColIdx >= 0 && lines.length > 1) {
+    // Header detected — pull from the email column on rows 2..N
+    for (let r = 1; r < lines.length; r++) {
+      const cells = parseLine(lines[r]);
+      const cell = cells[emailColIdx];
+      if (cell && EMAIL_REGEX.test(cell.toLowerCase())) {
+        collected.push(cell.toLowerCase());
+      }
+    }
+  } else {
+    // No header found — scan every cell on every line, keep anything that looks like an email
+    for (const line of lines) {
+      const cells = parseLine(line);
+      for (const cell of cells) {
+        if (cell && EMAIL_REGEX.test(cell.toLowerCase())) {
+          collected.push(cell.toLowerCase());
+        }
+      }
+    }
+  }
+
+  // Dedup before returning so the user sees a clean preview
+  return Array.from(new Set(collected)).join('\n');
+}
+
 function parseEmails(text: string): ParsedList {
   const lines = text
     .split(/[\n,;]+/)        // split on newline, comma, semicolon
@@ -55,9 +138,28 @@ export function ImportSubscribersClient() {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   const parsed = useMemo(() => parseEmails(text), [text]);
   const canImport = parsed.valid.length > 0 && !importing;
+
+  // Read a dropped/selected file, find the email column, dump emails into the textarea.
+  // Works with single-column files (just emails) and multi-column CSVs (e.g. Mailchimp/Substack
+  // export with email,name,subscribed_at,...). For multi-column we look for a header containing
+  // "email" — case-insensitive — and pull that column.
+  function handleFile(file: File) {
+    setFileName(file.name);
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const raw = String(reader.result || '');
+      const extracted = extractEmailsFromCSV(raw);
+      setText(extracted);
+    };
+    reader.onerror = () => setError(`Could not read file: ${file.name}`);
+    reader.readAsText(file);
+  }
 
   async function runImport() {
     setImporting(true);
@@ -97,34 +199,101 @@ export function ImportSubscribersClient() {
         email sent), so only paste people who have already opted in to your list.
       </p>
 
-      {/* Source label */}
+      {/* Group label */}
       <div style={{ marginBottom: 16 }}>
-        <label className="label">Source label (for tracking)</label>
+        <label className="label">Group label</label>
         <input
           className="input"
           value={source}
           onChange={(e) => setSource(e.target.value)}
-          placeholder="import"
-          style={{ maxWidth: 280 }}
+          placeholder="e.g. mailchimp-april or gym-owners-cold"
+          style={{ maxWidth: 360 }}
         />
         <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
-          Shows up in the &ldquo;Source&rdquo; column on the subscribers list. Use something like
-          &ldquo;import-2026-04&rdquo; or &ldquo;mailchimp-export&rdquo; to remember where they came from.
+          Tags every imported subscriber with this label so you can filter, broadcast, or relabel them later.
+          Shows up in the &ldquo;Group&rdquo; column on the subscribers list. Use something distinct like
+          &ldquo;mailchimp-april&rdquo; or &ldquo;import-batch-1&rdquo;.
         </p>
+      </div>
+
+      {/* CSV file upload */}
+      <div style={{ marginBottom: 16 }}>
+        <label className="label">Upload a CSV file</label>
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragActive(true);
+          }}
+          onDragLeave={() => setDragActive(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) handleFile(file);
+          }}
+          style={{
+            border: `1px dashed ${dragActive ? 'var(--neon)' : 'var(--line-2)'}`,
+            background: dragActive ? 'rgba(196,255,61,0.05)' : 'rgba(255,255,255,0.02)',
+            borderRadius: 10,
+            padding: 24,
+            textAlign: 'center',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+        >
+          <input
+            type="file"
+            accept=".csv,.txt,text/csv,text/plain"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+            }}
+            style={{ display: 'none' }}
+            id="csv-file-input"
+          />
+          <label
+            htmlFor="csv-file-input"
+            style={{
+              display: 'inline-block',
+              padding: '8px 18px',
+              borderRadius: 6,
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid var(--line-2)',
+              color: 'var(--text)',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 500,
+              marginBottom: 8,
+            }}
+          >
+            Choose CSV file
+          </label>
+          <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '4px 0 0' }}>
+            …or drag &amp; drop a CSV here. Auto-detects the email column from the header row.
+            {fileName && (
+              <>
+                <br />
+                <span style={{ color: 'var(--neon)' }}>✓ Loaded: {fileName}</span>
+              </>
+            )}
+          </p>
+        </div>
       </div>
 
       {/* Paste box */}
       <div style={{ marginBottom: 16 }}>
-        <label className="label">Email addresses</label>
+        <label className="label">…or paste email addresses</label>
         <textarea
           className="input"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          rows={14}
+          rows={10}
           spellCheck={false}
           placeholder="alice@example.com&#10;bob@example.com&#10;carol@example.com"
           style={{ fontFamily: 'var(--mono, monospace)', fontSize: 13, lineHeight: 1.5, resize: 'vertical' }}
         />
+        <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+          One email per line, or comma/semicolon-separated.
+        </p>
       </div>
 
       {/* Live preview summary */}
@@ -246,6 +415,7 @@ export function ImportSubscribersClient() {
               setText('');
               setResult(null);
               setError(null);
+              setFileName(null);
             }}
             className="btn btn-ghost"
             style={{ padding: '12px 20px', fontSize: 13 }}

@@ -4,10 +4,10 @@ import { generateToken } from '@/lib/tokens';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300; // 5-minute timeout for big imports (10k+ rows)
+const HARD_CAP = 25000; // refuse imports above this — split into multiple runs if needed
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const HARD_CAP = 5000; // refuse imports above this size to avoid Vercel timeout / DB stress
 
 /**
  * POST /api/admin/subscribers/import

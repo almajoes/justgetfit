@@ -9,7 +9,7 @@ type Subscriber = {
   subscribed_at: string;
 };
 
-type Mode = 'all' | 'source' | 'pick';
+type Mode = 'all' | 'source' | 'pick' | 'random';
 
 export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) {
   const [subject, setSubject] = useState('');
@@ -23,6 +23,12 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pickerSearch, setPickerSearch] = useState('');
+  // Random sample mode: how many to pick + which pool to sample from
+  const [randomCount, setRandomCount] = useState<number>(1000);
+  const [randomFromGroups, setRandomFromGroups] = useState<Set<string>>(new Set()); // empty = sample from ALL
+  // Stable seed so the recipient count doesn't change every render.
+  // Re-rolling the sample is a deliberate user action via the "Re-shuffle" button.
+  const [randomSeed, setRandomSeed] = useState<number>(() => Math.floor(Math.random() * 1e9));
 
   const charCount = body.length;
   const subjectCharCount = subject.length;
@@ -44,9 +50,51 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
       if (selectedSources.size === 0) return [];
       return subscribers.filter((s) => selectedSources.has(s.source || '(none)'));
     }
+    if (mode === 'random') {
+      // Pool: either the specified groups or everyone if no groups specified
+      const pool =
+        randomFromGroups.size > 0
+          ? subscribers.filter((s) => randomFromGroups.has(s.source || '(none)'))
+          : subscribers;
+      const n = Math.min(Math.max(0, Math.floor(randomCount)), pool.length);
+      // Seeded Fisher-Yates: deterministic given (pool, seed) so the count is stable.
+      // Mulberry32 is small and good enough for picking emails.
+      const arr = pool.slice();
+      let seed = randomSeed >>> 0;
+      const rand = () => {
+        seed = (seed + 0x6d2b79f5) >>> 0;
+        let t = seed;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr.slice(0, n);
+    }
     // mode === 'pick'
     return subscribers.filter((s) => selectedIds.has(s.id));
-  }, [mode, subscribers, selectedSources, selectedIds]);
+  }, [mode, subscribers, selectedSources, selectedIds, randomCount, randomFromGroups, randomSeed]);
+
+  const recipientCount = recipients.length;
+  const canSend = subject.trim().length > 0 && body.trim().length > 0 && sending === 'none';
+
+  // Pool size for the random-mode UI display
+  const randomPoolSize = useMemo(() => {
+    if (randomFromGroups.size === 0) return subscribers.length;
+    return subscribers.filter((s) => randomFromGroups.has(s.source || '(none)')).length;
+  }, [subscribers, randomFromGroups]);
+
+  function toggleRandomGroup(g: string) {
+    setRandomFromGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
+      return next;
+    });
+  }
 
   const recipientCount = recipients.length;
   const canSend = subject.trim().length > 0 && body.trim().length > 0 && sending === 'none';
@@ -167,6 +215,7 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
       setMode('all');
       setSelectedSources(new Set());
       setSelectedIds(new Set());
+      setRandomFromGroups(new Set());
     } catch (err) {
       setMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Broadcast failed' });
     } finally {
@@ -230,18 +279,20 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
             All confirmed ({subscribers.length})
           </ModeBtn>
           <ModeBtn active={mode === 'source'} onClick={() => setMode('source')}>
-            By source
+            By group
           </ModeBtn>
           <ModeBtn active={mode === 'pick'} onClick={() => setMode('pick')}>
             Pick individuals
+          </ModeBtn>
+          <ModeBtn active={mode === 'random'} onClick={() => setMode('random')}>
+            Random sample
           </ModeBtn>
         </div>
 
         {mode === 'source' && (
           <div>
             <p style={muted}>
-              Subscribers are tagged with a &ldquo;source&rdquo; when they sign up (e.g. <code style={inlineCode}>homepage</code>,{' '}
-              <code style={inlineCode}>import-2026-04</code>). Pick one or more sources to include.
+              Each subscriber has a group label (assigned at signup or via import). Pick one or more groups to include.
             </p>
             <div
               style={{
@@ -345,6 +396,83 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
                   );
                 })
               )}
+            </div>
+          </div>
+        )}
+
+        {mode === 'random' && (
+          <div>
+            <p style={muted}>
+              Pick a random subset of subscribers. Useful for warming up domain reputation by sending to small batches before blasting the full list, or A/B testing subject lines.
+            </p>
+
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 12, marginBottom: 16 }}>
+              <div>
+                <label className="label">How many to pick</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={randomPoolSize}
+                  value={randomCount}
+                  onChange={(e) => setRandomCount(Math.max(1, parseInt(e.target.value, 10) || 0))}
+                  className="input"
+                  style={{ width: 140 }}
+                />
+                <p style={{ ...muted, marginTop: 4 }}>
+                  Pool size: <strong style={{ color: 'var(--text-2)' }}>{randomPoolSize}</strong>
+                  {randomFromGroups.size > 0 && ' (filtered by selected groups)'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRandomSeed(Math.floor(Math.random() * 1e9))}
+                className="btn btn-ghost"
+                style={{ padding: '10px 16px', fontSize: 13 }}
+              >
+                ↻ Re-shuffle
+              </button>
+            </div>
+
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8 }}>
+                Sample from these groups (leave empty to sample from <strong>all</strong> confirmed subscribers):
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                  gap: 8,
+                }}
+              >
+                {sources.map(([src, count]) => {
+                  const checked = randomFromGroups.has(src);
+                  return (
+                    <label
+                      key={src}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: `1px solid ${checked ? 'var(--neon)' : 'var(--line)'}`,
+                        background: checked ? 'rgba(196,255,61,0.06)' : 'transparent',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleRandomGroup(src)}
+                        style={{ accentColor: 'var(--neon)' }}
+                      />
+                      <span style={{ flex: 1, fontFamily: 'monospace' }}>{src}</span>
+                      <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{count}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
