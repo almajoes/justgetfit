@@ -113,20 +113,11 @@ export default async function NewsletterAdminPage() {
                     </span>
                   </td>
                   <td style={td}>
-                    {s.kind === 'broadcast' ? (
-                      <span style={{ color: 'var(--text)', fontWeight: 500 }}>
-                        {s.subject || '(no subject)'}
-                      </span>
-                    ) : s.posts ? (
-                      <Link
-                        href={s.posts.category ? `/articles/${s.posts.category}/${s.posts.slug}` : `/articles`}
-                        style={{ color: 'var(--text)', textDecoration: 'none', fontWeight: 500 }}
-                      >
-                        {s.posts.title}
-                      </Link>
-                    ) : (
-                      <span style={{ color: 'var(--text-3)' }}>(deleted post)</span>
-                    )}
+                    <Link href={`/admin/newsletter/${s.id}`} style={{ color: 'var(--text)', textDecoration: 'none', fontWeight: 500 }}>
+                      {s.kind === 'broadcast'
+                        ? s.subject || '(no subject)'
+                        : s.posts?.title || '(deleted post)'}
+                    </Link>
                   </td>
                   <td style={{ ...td, fontWeight: 600 }}>{s.recipient_count}</td>
                   <td style={{ ...td, color: s.failed_count > 0 ? '#ff6b6b' : 'var(--text-3)' }}>
