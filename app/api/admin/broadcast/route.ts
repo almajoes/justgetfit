@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
       unsubscribeToken: sub.unsubscribe_token,
       subject,
       bodyMarkdown,
+      sendId: sendRow?.id,
     });
     if (!result.ok) failed++;
     else

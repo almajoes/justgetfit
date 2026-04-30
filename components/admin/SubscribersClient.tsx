@@ -6,16 +6,35 @@ import type { Subscriber } from '@/lib/supabase';
 
 type Stats = { total: number; confirmed: number; pending: number; unsubscribed: number };
 
+const PAGE_SIZE = 20;
+
 export function SubscribersClient({ subscribers, stats }: { subscribers: Subscriber[]; stats: Stats }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'pending' | 'unsubscribed'>('all');
+  const [page, setPage] = useState(1);
 
-  const visible = subscribers.filter((s) => {
+  const filtered = subscribers.filter((s) => {
     if (filter !== 'all' && s.status !== filter) return false;
     if (search && !s.email.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Clamp page if filter/search shrunk the list below the current page
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * PAGE_SIZE;
+  const visible = filtered.slice(start, start + PAGE_SIZE);
+
+  // Reset to page 1 when filter or search changes
+  function setFilterAndReset(f: typeof filter) {
+    setFilter(f);
+    setPage(1);
+  }
+  function setSearchAndReset(s: string) {
+    setSearch(s);
+    setPage(1);
+  }
 
   async function handleAction(id: string, action: 'resend_confirmation' | 'unsubscribe' | 'delete') {
     if (action === 'delete' && !confirm('Delete this subscriber permanently?')) return;
@@ -87,14 +106,14 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
           type="search"
           placeholder="Search by email…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setSearchAndReset(e.target.value)}
           className="input"
           style={{ flex: 1, minWidth: 240, maxWidth: 360 }}
         />
         {(['all', 'confirmed', 'pending', 'unsubscribed'] as const).map((f) => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => setFilterAndReset(f)}
             className="btn btn-ghost"
             style={{
               padding: '8px 14px',
@@ -166,6 +185,45 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
           </div>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div
+          style={{
+            marginTop: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ fontSize: 13, color: 'var(--text-3)' }}>
+            Showing {start + 1}&ndash;{Math.min(start + PAGE_SIZE, filtered.length)} of {filtered.length}
+            {filtered.length !== subscribers.length && ` (filtered from ${subscribers.length} total)`}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={() => setPage(safePage - 1)}
+              disabled={safePage <= 1}
+              className="btn btn-ghost"
+              style={{ padding: '6px 12px', fontSize: 13 }}
+            >
+              ← Previous
+            </button>
+            <span style={{ fontSize: 13, color: 'var(--text-2)', padding: '0 8px' }}>
+              Page {safePage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(safePage + 1)}
+              disabled={safePage >= totalPages}
+              className="btn btn-ghost"
+              style={{ padding: '6px 12px', fontSize: 13 }}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

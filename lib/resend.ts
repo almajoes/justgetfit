@@ -281,6 +281,7 @@ export async function sendNewsletterEmail(opts: {
   postSlug: string;
   postCoverUrl: string | null;
   postCategory: string | null;
+  sendId?: string; // attribution tag for open/click tracking webhooks
 }): Promise<{ ok: boolean; error?: string }> {
   if (!resend) return { ok: false, error: 'RESEND_API_KEY not configured' };
 
@@ -348,6 +349,7 @@ ${siteUrl}`;
         'List-Unsubscribe': `<${unsubUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       },
+      tags: opts.sendId ? [{ name: 'send_id', value: opts.sendId }] : undefined,
     });
     return { ok: true };
   } catch (err) {
@@ -365,6 +367,7 @@ export async function sendBroadcastEmail(opts: {
   unsubscribeToken: string;
   subject: string;
   bodyMarkdown: string;
+  sendId?: string; // attribution tag for open/click tracking webhooks
 }): Promise<{ ok: boolean; error?: string }> {
   if (!resend) return { ok: false, error: 'RESEND_API_KEY not configured' };
 
@@ -411,6 +414,7 @@ ${siteUrl}`;
         'List-Unsubscribe': `<${unsubUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       },
+      tags: opts.sendId ? [{ name: 'send_id', value: opts.sendId }] : undefined,
     });
     return { ok: true };
   } catch (err) {

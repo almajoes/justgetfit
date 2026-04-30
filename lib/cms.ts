@@ -32,6 +32,7 @@ const SITE_DEFAULTS: SiteSettings = {
   newsletter_enabled: true,
   // SEO fields — all optional; empty strings mean "use computed defaults"
   seo_title: '',
+  seo_title_template: '',
   seo_description: '',
   keywords: '',
   og_title: '',

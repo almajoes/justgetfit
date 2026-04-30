@@ -160,6 +160,7 @@ async function sendBlastForPost(postId: string) {
       postSlug: post.slug,
       postCoverUrl: post.cover_image_url,
       postCategory: post.category,
+      sendId: sendRow?.id,
     });
     if (!result.ok) failed++;
     else await supabaseAdmin.from('subscribers').update({ last_sent_at: new Date().toISOString() }).eq('id', sub.id);

@@ -134,6 +134,7 @@ export type SiteSettings = {
   newsletter_enabled: boolean;
   // SEO overrides (all optional — empty/missing values fall back to sensible defaults)
   seo_title?: string;            // overrides home page <title>; falls back to "${name} — ${tagline}"
+  seo_title_template?: string;   // template for sub-page titles. Use %s as placeholder. Default: "%s · ${name}"
   seo_description?: string;      // overrides meta description; falls back to `description`
   keywords?: string;             // comma-separated list for <meta name="keywords">
   og_title?: string;             // Open Graph title (social shares); falls back to seo_title or name+tagline

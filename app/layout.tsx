@@ -70,8 +70,14 @@ export async function generateMetadata(): Promise<Metadata> {
     ? site.keywords.split(',').map((k) => k.trim()).filter(Boolean)
     : defaultKeywords;
 
+  // Sub-page title template. Uses %s as the placeholder for the page-specific title.
+  // Default suffix follows the format: "<page> | Just Get Fit: <description>"
+  // Empty admin value falls back to a sensible computed default that includes the brand + a short pitch.
+  const defaultTemplate = `%s | ${site.name}: Practical Fitness, Smarter Training & Real Results`;
+  const titleTemplate = site.seo_title_template?.trim() || defaultTemplate;
+
   return {
-    title: { default: homeTitle, template: `%s · ${site.name}` },
+    title: { default: homeTitle, template: titleTemplate },
     description,
     metadataBase: new URL(SITE_URL),
     alternates: { canonical: '/' },

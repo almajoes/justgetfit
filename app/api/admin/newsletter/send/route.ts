@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       postSlug: post.slug,
       postCoverUrl: post.cover_image_url,
       postCategory: post.category,
+      sendId: sendRow?.id,
     });
     if (!result.ok) failed++;
     else

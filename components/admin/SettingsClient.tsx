@@ -80,7 +80,20 @@ export function SettingsClient({ site, footer }: { site: SiteSettings; footer: F
             placeholder={`${siteVal.name} — ${siteVal.tagline}`}
           />
           <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
-            What appears in the browser tab and Google search result for the homepage. Aim for under 60 characters. Sub-pages use their own titles plus &ldquo;· {siteVal.name}&rdquo;.
+            What appears in the browser tab and Google search result for the homepage. Aim for under 60 characters. Sub-pages use the title template below.
+          </p>
+        </div>
+        <div>
+          <label className="label">Sub-page title template</label>
+          <input
+            className="input"
+            value={siteVal.seo_title_template || ''}
+            onChange={(e) => setSiteVal({ ...siteVal, seo_title_template: e.target.value })}
+            placeholder={`%s | ${siteVal.name}: Practical Fitness, Smarter Training & Real Results`}
+          />
+          <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>
+            Format for every sub-page&apos;s <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: 3 }}>&lt;title&gt;</code> tag. Use <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: 3 }}>%s</code> as the placeholder for the page&apos;s own title.
+            Example: &ldquo;About&rdquo; renders as &ldquo;About | {siteVal.name}: Practical Fitness, Smarter Training &amp; Real Results&rdquo;.
           </p>
         </div>
         <div>
