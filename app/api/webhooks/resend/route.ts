@@ -91,8 +91,18 @@ export async function POST(req: NextRequest) {
   const data = event.data;
 
   // Extract send_id from tags. Resend echoes back the tags we attached when sending.
-  const sendIdTag = (data.tags || []).find((t) => t.name === 'send_id');
-  const sendId = sendIdTag?.value;
+  // Resend's webhook payload returns tags as an OBJECT (not array): { "send_id": "abc-123" }
+  // — even though we send them as an array of {name, value} pairs. Handle both shapes
+  // defensively in case Resend changes the format.
+  let sendId: string | undefined;
+  const tags = data.tags;
+  if (tags) {
+    if (Array.isArray(tags)) {
+      sendId = tags.find((t) => t?.name === 'send_id')?.value;
+    } else if (typeof tags === 'object') {
+      sendId = (tags as Record<string, string>).send_id;
+    }
+  }
 
   // First recipient (Resend includes an array; we send one email per recipient anyway)
   const recipientEmail = Array.isArray(data.to) ? data.to[0] : data.to;
@@ -184,7 +194,7 @@ type ResendEventData = {
   from?: string;
   subject?: string;
   created_at?: string;
-  tags?: Array<{ name: string; value: string }>;
+  tags?: Array<{ name: string; value: string }> | Record<string, string>;
   click?: { link?: string; user_agent?: string; ip_address?: string };
   open?: { user_agent?: string; ip_address?: string };
 };
