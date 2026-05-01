@@ -8,8 +8,9 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/webhooks/resend
  *
- * Receives webhook events from Resend (email.delivered, email.opened, email.clicked, etc.)
- * Resend signs requests using svix-style HMAC-SHA256; we verify before processing.
+ * Receives webhook events from Resend (email.delivered, email.opened, email.clicked,
+ * email.bounced, email.complained, etc.) Resend signs requests using svix-style
+ * HMAC-SHA256; we verify before processing.
  *
  * Setup (in Resend dashboard):
  *   1. Webhooks → Add Endpoint → URL: https://justgetfit.org/api/webhooks/resend
@@ -20,6 +21,19 @@ export const dynamic = 'force-dynamic';
  * To attribute events back to a `newsletter_sends` row, the outgoing emails
  * include a `tags` array with `{ name: 'send_id', value: <uuid> }`. Resend
  * echoes that back in the webhook payload as `data.tags`.
+ *
+ * Bounce handling:
+ *   - Counts ALL bounce events (hard + soft + undetermined) in newsletter_sends.bounced_count
+ *     for visibility and warm-up monitoring.
+ *   - PERMANENT (hard) bounces ALSO flip the subscriber's status to 'bounced' so they
+ *     are never retried. Continuing to send to known-bad addresses is the fastest way
+ *     to ruin sender reputation. Soft/undetermined bounces are NOT auto-suppressed —
+ *     those are often transient (full mailbox, temporary server issue).
+ *
+ * Complaint handling:
+ *   - Counts in newsletter_sends.complained_count.
+ *   - Subscriber status is NOT auto-flipped (per current product decision — manual
+ *     review only). To enable auto-suppress, see comment near the call site below.
  */
 export async function POST(req: NextRequest) {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
@@ -56,9 +70,12 @@ export async function POST(req: NextRequest) {
 
   // Header is space-separated list of "v1,sig" pairs; check any one matches
   const sigs = svixSignature.split(' ').map((s) => s.split(',')[1]).filter(Boolean);
-  const matched = sigs.some((sig) =>
-    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
-  );
+  const matched = sigs.some((sig) => {
+    const sigBuf = Buffer.from(sig);
+    const expBuf = Buffer.from(expected);
+    if (sigBuf.length !== expBuf.length) return false;
+    return crypto.timingSafeEqual(sigBuf, expBuf);
+  });
   if (!matched) {
     console.error('[resend-webhook] signature mismatch');
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
@@ -84,7 +101,6 @@ export async function POST(req: NextRequest) {
   };
   const eventType = typeMap[event.type];
   if (!eventType) {
-    // Unknown event type — ack and ignore
     return NextResponse.json({ ok: true, ignored: event.type });
   }
 
@@ -127,16 +143,40 @@ export async function POST(req: NextRequest) {
     .from('email_events')
     .insert(eventRow);
 
-  // 23505 = unique constraint violation = already recorded this open/click. That's fine.
+  // 23505 = unique constraint violation = already recorded this event. That's fine.
   if (insertErr && insertErr.code !== '23505') {
     console.error('[resend-webhook] insert failed:', insertErr);
     return NextResponse.json({ error: insertErr.message }, { status: 500 });
   }
 
-  // Refresh denormalized counters on newsletter_sends if this was an open/click
-  // and we have a send_id. Counts are based on UNIQUE recipients, not raw events.
+  // ─── Side-effects per event type ────────────────────────────────────
+  // Refresh denormalized counters on newsletter_sends. Counts are based on
+  // UNIQUE recipients (one per email per event_type), not raw events.
   if (sendId && (eventType === 'opened' || eventType === 'clicked')) {
-    await refreshCounters(sendId);
+    await refreshOpenClickCounters(sendId);
+  }
+
+  if (eventType === 'bounced') {
+    if (sendId) {
+      await refreshBounceCounter(sendId);
+    }
+
+    // Auto-suppress on PERMANENT (hard) bounces — never retry to addresses
+    // the receiving server has flat-out rejected. Soft / undetermined are
+    // left alone (Resend will retry; we just track the count).
+    const bounceType = data.bounce?.type;
+    if (bounceType === 'Permanent') {
+      await suppressBouncedSubscriber(recipientEmail, data.bounce?.message || null);
+    }
+  }
+
+  if (eventType === 'complained' && sendId) {
+    await refreshComplaintCounter(sendId);
+    // Note: complained subscribers are NOT auto-suppressed at this time —
+    // current product decision is to track for visibility only. To enable
+    // auto-suppress on complaints, mirror the suppressBouncedSubscriber()
+    // pattern but flip status to 'unsubscribed' (since the user has
+    // effectively opted out by marking spam).
   }
 
   return NextResponse.json({ ok: true });
@@ -147,8 +187,7 @@ export async function POST(req: NextRequest) {
  * Runs whenever a new event arrives so the dashboard stays current
  * without a separate cron.
  */
-async function refreshCounters(sendId: string) {
-  // Count distinct recipients who opened
+async function refreshOpenClickCounters(sendId: string) {
   const { data: opens } = await supabaseAdmin
     .from('email_events')
     .select('email')
@@ -169,6 +208,83 @@ async function refreshCounters(sendId: string) {
     .eq('id', sendId);
 }
 
+/**
+ * Recompute unique-recipient bounce count for a single send.
+ * Counts ALL bounces (hard + soft + undetermined) so the warm-up monitoring
+ * surface shows the full picture. Auto-suppression of hard-bounced
+ * subscribers is handled separately in suppressBouncedSubscriber().
+ */
+async function refreshBounceCounter(sendId: string) {
+  const { data: bounces } = await supabaseAdmin
+    .from('email_events')
+    .select('email')
+    .eq('send_id', sendId)
+    .eq('event_type', 'bounced');
+  const uniqueBounces = new Set((bounces || []).map((r) => r.email)).size;
+
+  await supabaseAdmin
+    .from('newsletter_sends')
+    .update({ bounced_count: uniqueBounces })
+    .eq('id', sendId);
+}
+
+/**
+ * Recompute unique-recipient complaint count for a single send.
+ */
+async function refreshComplaintCounter(sendId: string) {
+  const { data: complaints } = await supabaseAdmin
+    .from('email_events')
+    .select('email')
+    .eq('send_id', sendId)
+    .eq('event_type', 'complained');
+  const uniqueComplaints = new Set((complaints || []).map((r) => r.email)).size;
+
+  await supabaseAdmin
+    .from('newsletter_sends')
+    .update({ complained_count: uniqueComplaints })
+    .eq('id', sendId);
+}
+
+/**
+ * Flip subscriber status to 'bounced' for a hard-bounced address. Future
+ * sends will skip this subscriber (the email-jobs worker filters to
+ * status='confirmed' before sending; the resolveAudience server-side
+ * lookups also filter the same way).
+ *
+ * Idempotent: if the subscriber is already 'bounced' or 'unsubscribed',
+ * the update is a no-op (no rows match status='confirmed').
+ *
+ * Best-effort: failures are logged but do not 500 the webhook (we still
+ * want to ack the event so Resend doesn't retry forever).
+ */
+async function suppressBouncedSubscriber(email: string, reason: string | null) {
+  try {
+    const { error, data } = await supabaseAdmin
+      .from('subscribers')
+      .update({
+        status: 'bounced',
+        // Reuse unsubscribed_at to record the timestamp. The subscribers table
+        // doesn't have a dedicated bounced_at column; status='bounced' is the
+        // source of truth and this column gives us a "when did this happen"
+        // for admin visibility without requiring another schema migration.
+        unsubscribed_at: new Date().toISOString(),
+      })
+      .eq('email', email)
+      .eq('status', 'confirmed')
+      .select('id');
+
+    if (error) {
+      console.error(`[resend-webhook] suppressBouncedSubscriber(${email}) failed:`, error.message);
+      return;
+    }
+    if (data && data.length > 0) {
+      console.log(`[resend-webhook] suppressed ${email} as bounced. Reason: ${reason || '(none)'}`);
+    }
+  } catch (err) {
+    console.error(`[resend-webhook] suppressBouncedSubscriber(${email}) threw:`, err);
+  }
+}
+
 function getUA(data: ResendEventData): string | null {
   if ('open' in data && data.open?.user_agent) return data.open.user_agent;
   if ('click' in data && data.click?.user_agent) return data.click.user_agent;
@@ -181,7 +297,7 @@ function getIP(data: ResendEventData): string | null {
   return null;
 }
 
-// Resend webhook payload shapes
+// ─── Resend webhook payload shapes ─────────────────────────────────────
 type ResendWebhookEvent = {
   type: string;
   created_at?: string;
@@ -197,4 +313,6 @@ type ResendEventData = {
   tags?: Array<{ name: string; value: string }> | Record<string, string>;
   click?: { link?: string; user_agent?: string; ip_address?: string };
   open?: { user_agent?: string; ip_address?: string };
+  // Bounce details: type='Permanent'|'Transient'|'Undetermined' (Resend's terms)
+  bounce?: { type?: string; subType?: string; message?: string };
 };

@@ -18,6 +18,8 @@ type SendRow = {
   failed_count: number;
   opened_count: number;
   clicked_count: number;
+  bounced_count: number;
+  complained_count: number;
   status: string;
   notes: string | null;
   post_id: string | null;
@@ -63,7 +65,6 @@ async function loadConfirmedSubscribers(): Promise<SubRow[]> {
       .select('id, email, source, subscribed_at')
       .eq('status', 'confirmed')
       .order('subscribed_at', { ascending: false })
-      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     const batch = (data as SubRow[]) || [];
     all = all.concat(batch);
@@ -173,6 +174,8 @@ export default async function SendDetailPage({ params }: { params: { id: string 
         <Stat label="Recipients" value={sendRow.recipient_count.toLocaleString()} />
         <Stat label="Delivered" value={delivered.toLocaleString()} />
         <Stat label="Failed" value={sendRow.failed_count.toLocaleString()} accent={sendRow.failed_count > 0 ? '#ff6b6b' : undefined} />
+        <Stat label="Bounced" value={`${(sendRow.bounced_count || 0).toLocaleString()} · ${pct(sendRow.bounced_count || 0, delivered)}`} accent={(sendRow.bounced_count || 0) > 0 ? '#ff9b6b' : undefined} />
+        <Stat label="Complaints" value={`${(sendRow.complained_count || 0).toLocaleString()} · ${pct(sendRow.complained_count || 0, delivered)}`} accent={(sendRow.complained_count || 0) > 0 ? '#ff6b6b' : undefined} />
         <Stat label="Unique opens" value={`${sendRow.opened_count} · ${pct(sendRow.opened_count, delivered)}`} accent="var(--neon)" />
         <Stat label="Unique clicks" value={`${sendRow.clicked_count} · ${pct(sendRow.clicked_count, delivered)}`} accent="var(--neon)" />
       </div>
