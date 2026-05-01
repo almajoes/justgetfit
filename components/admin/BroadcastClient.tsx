@@ -1,15 +1,14 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-
-type Subscriber = {
-  id: string;
-  email: string;
-  source: string | null;
-  subscribed_at: string;
-};
-
-type Mode = 'all' | 'source' | 'pick' | 'random';
+import { JobProgress } from './JobProgress';
+import {
+  AudiencePicker,
+  resolveAudience,
+  defaultAudienceValue,
+  type AudienceValue,
+  type Subscriber,
+} from './AudiencePicker';
 
 export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) {
   const [subject, setSubject] = useState('');
@@ -17,203 +16,36 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
   const [testEmail, setTestEmail] = useState('');
   const [sending, setSending] = useState<'none' | 'test' | 'broadcast'>('none');
   const [message, setMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
+  // When a broadcast is enqueued, server returns a job_id. We render <JobProgress />
+  // for live updates and lock the form. User can click "Compose another" to reset.
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
-  // Audience selection
-  const [mode, setMode] = useState<Mode>('all');
-  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [pickerSearch, setPickerSearch] = useState('');
-  // Random sample mode: how many to pick + which pool to sample from
-  const [randomCount, setRandomCount] = useState<number>(1000);
-  const [randomFromGroups, setRandomFromGroups] = useState<Set<string>>(new Set()); // empty = sample from ALL
-  // Groups whose members get included in full (no sampling), unioned with the random sample.
-  // Lets you do "1000 random from `import` + everyone in `subscribe-page`" in one send.
-  // A group cannot be in both sets — the UI disables the other side when one is ticked.
-  const [randomFullGroups, setRandomFullGroups] = useState<Set<string>>(new Set());
-  // Stable seed so the recipient count doesn't change every render.
-  // Re-rolling the sample is a deliberate user action via the "Re-shuffle" button.
-  const [randomSeed, setRandomSeed] = useState<number>(() => Math.floor(Math.random() * 1e9));
+  // Audience selection lives in a single state object so we can pass it to the
+  // shared <AudiencePicker /> as a controlled prop.
+  const [audience, setAudience] = useState<AudienceValue>(() => defaultAudienceValue());
+
+  const resolved = useMemo(() => resolveAudience(subscribers, audience), [subscribers, audience]);
+  const recipients = resolved.recipients;
+  const recipientCount = resolved.recipientCount;
 
   const charCount = body.length;
   const subjectCharCount = subject.length;
-
-  // Distinct sources, with counts. "(none)" is its own bucket for subs with no source set.
-  const sources = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const s of subscribers) {
-      const k = s.source || '(none)';
-      map.set(k, (map.get(k) || 0) + 1);
-    }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]); // most-common first
-  }, [subscribers]);
-
-  // Compute the actual recipient list based on the mode.
-  const recipients = useMemo(() => {
-    if (mode === 'all') return subscribers;
-    if (mode === 'source') {
-      if (selectedSources.size === 0) return [];
-      return subscribers.filter((s) => selectedSources.has(s.source || '(none)'));
-    }
-    if (mode === 'random') {
-      // The sample pool: subscribers in the "sample from" groups (or everyone if none selected).
-      // Subscribers in "always include" groups are excluded from the sample pool — they're
-      // added in full afterward, so we shouldn't double-count them when picking N.
-      const samplePool =
-        randomFromGroups.size > 0
-          ? subscribers.filter(
-              (s) =>
-                randomFromGroups.has(s.source || '(none)') &&
-                !randomFullGroups.has(s.source || '(none)')
-            )
-          : subscribers.filter((s) => !randomFullGroups.has(s.source || '(none)'));
-
-      const n = Math.min(Math.max(0, Math.floor(randomCount)), samplePool.length);
-
-      // Seeded Fisher-Yates: deterministic given (pool, seed) so the count is stable.
-      // Mulberry32 is small and good enough for picking emails.
-      const arr = samplePool.slice();
-      let seed = randomSeed >>> 0;
-      const rand = () => {
-        seed = (seed + 0x6d2b79f5) >>> 0;
-        let t = seed;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(rand() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      const sampled = arr.slice(0, n);
-
-      // Always-include: everyone in the full-include groups.
-      const fullIncluded =
-        randomFullGroups.size > 0
-          ? subscribers.filter((s) => randomFullGroups.has(s.source || '(none)'))
-          : [];
-
-      // Union, dedup by id. (samplePool already excludes full-include groups, so dedup is
-      // technically a belt-and-suspenders here, but cheap and protects against future edits.)
-      const seen = new Set<string>();
-      const out: Subscriber[] = [];
-      for (const s of sampled) {
-        if (!seen.has(s.id)) {
-          seen.add(s.id);
-          out.push(s);
-        }
-      }
-      for (const s of fullIncluded) {
-        if (!seen.has(s.id)) {
-          seen.add(s.id);
-          out.push(s);
-        }
-      }
-      return out;
-    }
-    // mode === 'pick'
-    return subscribers.filter((s) => selectedIds.has(s.id));
-  }, [mode, subscribers, selectedSources, selectedIds, randomCount, randomFromGroups, randomFullGroups, randomSeed]);
-
-  const recipientCount = recipients.length;
   const canSend = subject.trim().length > 0 && body.trim().length > 0 && sending === 'none';
 
-  // Pool size for the random-mode UI display.
-  // This is the SAMPLE pool size only (excludes full-include groups, since those subs
-  // are added in full afterward and shouldn't count toward the "N to pick from" max).
-  const randomPoolSize = useMemo(() => {
-    const base =
-      randomFromGroups.size > 0
-        ? subscribers.filter((s) => randomFromGroups.has(s.source || '(none)'))
-        : subscribers;
-    return base.filter((s) => !randomFullGroups.has(s.source || '(none)')).length;
-  }, [subscribers, randomFromGroups, randomFullGroups]);
-
-  // Total subscribers across all "always include" groups.
-  const randomFullSize = useMemo(() => {
-    if (randomFullGroups.size === 0) return 0;
-    return subscribers.filter((s) => randomFullGroups.has(s.source || '(none)')).length;
-  }, [subscribers, randomFullGroups]);
-
-  function toggleRandomGroup(g: string) {
-    setRandomFromGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(g)) next.delete(g);
-      else next.add(g);
-      return next;
-    });
-  }
-
-  function toggleRandomFullGroup(g: string) {
-    setRandomFullGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(g)) next.delete(g);
-      else next.add(g);
-      return next;
-    });
-  }
-
-  // For the picker, filter by search
-  const visiblePickerSubs = useMemo(() => {
-    if (!pickerSearch.trim()) return subscribers;
-    const q = pickerSearch.toLowerCase();
-    return subscribers.filter(
-      (s) => s.email.toLowerCase().includes(q) || (s.source || '').toLowerCase().includes(q)
-    );
-  }, [subscribers, pickerSearch]);
-
-  function toggleSource(src: string) {
-    setSelectedSources((prev) => {
-      const next = new Set(prev);
-      if (next.has(src)) next.delete(src);
-      else next.add(src);
-      return next;
-    });
-  }
-
-  function togglePicked(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function selectAllVisible() {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      visiblePickerSubs.forEach((s) => next.add(s.id));
-      return next;
-    });
-  }
-
-  function deselectAllVisible() {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      visiblePickerSubs.forEach((s) => next.delete(s.id));
-      return next;
-    });
-  }
-
+  // ─── Test send ───────────────────────────────────────────────────────
   async function sendTest() {
-    if (!testEmail.trim()) {
-      setMessage({ kind: 'error', text: 'Enter a test email address.' });
-      return;
-    }
+    if (!testEmail.trim()) return;
     setSending('test');
     setMessage(null);
     try {
       const res = await fetch('/api/admin/broadcast/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, body_markdown: body, to_email: testEmail }),
+        body: JSON.stringify({ to: testEmail.trim(), subject, body_markdown: body }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setMessage({
-        kind: 'success',
-        text: `Test sent to ${testEmail}. Check inbox (and spam folder) — subject is prefixed with "[TEST]".`,
-      });
+      setMessage({ kind: 'success', text: `Test sent to ${testEmail.trim()}.` });
     } catch (err) {
       setMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Test send failed' });
     } finally {
@@ -221,29 +53,30 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
     }
   }
 
+  // ─── Real broadcast ──────────────────────────────────────────────────
   async function sendBroadcast() {
     if (recipientCount === 0) {
       setMessage({ kind: 'error', text: 'No recipients selected — pick at least one subscriber.' });
       return;
     }
     const confirmText =
-      mode === 'all'
-        ? `Send this broadcast to all ${recipientCount} confirmed subscriber${recipientCount === 1 ? '' : 's'}?`
-        : `Send this broadcast to ${recipientCount} selected subscriber${recipientCount === 1 ? '' : 's'}?`;
+      audience.mode === 'all'
+        ? `Send this broadcast to all ${recipientCount.toLocaleString()} confirmed subscriber${recipientCount === 1 ? '' : 's'}?`
+        : `Send this broadcast to ${recipientCount.toLocaleString()} selected subscriber${recipientCount === 1 ? '' : 's'}?`;
     if (!confirm(`${confirmText}\n\nSubject: ${subject}\n\nThis cannot be undone.`)) return;
 
     setSending('broadcast');
     setMessage(null);
     try {
       // Server expects either { mode: 'all' } OR an explicit subscriber_ids list.
-      // For 'source' mode we resolve to ids client-side and send those.
+      // For non-'all' modes we resolve to ids client-side and send those.
       const payload: {
         subject: string;
         body_markdown: string;
         mode: 'all' | 'list';
         subscriber_ids?: string[];
       } =
-        mode === 'all'
+        audience.mode === 'all'
           ? { subject, body_markdown: body, mode: 'all' }
           : {
               subject,
@@ -259,23 +92,36 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      // Server returns { job_id, send_id, total_recipients } when a job was enqueued.
+      // If no job_id (zero eligible recipients), surface that as info.
+      if (!data.job_id) {
+        setMessage({ kind: 'info', text: data.message || 'Broadcast accepted but no recipients matched.' });
+        return;
+      }
+
+      // Switch into "watch the job" mode.
+      setActiveJobId(data.job_id);
       setMessage({
         kind: 'success',
-        text: `Broadcast sent to ${data.recipient_count} subscriber${data.recipient_count === 1 ? '' : 's'}. ${data.failed_count} failed.`,
+        text: `Send started for ${data.total_recipients.toLocaleString()} subscriber${data.total_recipients === 1 ? '' : 's'}. Progress shown below.`,
       });
       setSubject('');
       setBody('');
-      setMode('all');
-      setSelectedSources(new Set());
-      setSelectedIds(new Set());
-      setRandomFromGroups(new Set());
-      setRandomFullGroups(new Set());
+      setAudience(defaultAudienceValue());
     } catch (err) {
       setMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Broadcast failed' });
     } finally {
       setSending('none');
     }
   }
+
+  function composeAnother() {
+    setActiveJobId(null);
+    setMessage(null);
+  }
+
+  const formDisabled = sending !== 'none' || activeJobId !== null;
 
   return (
     <div style={{ padding: 32, maxWidth: 920, margin: '0 auto' }}>
@@ -284,6 +130,21 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
         Send an off-cycle email to a chosen set of subscribers. Use this for announcements, schedule changes,
         or anything outside the standard Monday article.
       </p>
+
+      {/* Active job: show progress at the top + offer reset */}
+      {activeJobId && (
+        <>
+          <JobProgress jobId={activeJobId} />
+          <div style={{ marginBottom: 32 }}>
+            <button type="button" onClick={composeAnother} className="btn btn-ghost" style={{ padding: '10px 16px', fontSize: 13 }}>
+              ← Compose another broadcast
+            </button>
+            <p style={{ ...muted, marginTop: 8 }}>
+              You can leave this page — the send continues in the background. Check the Newsletter log for final tallies.
+            </p>
+          </div>
+        </>
+      )}
 
       {/* SUBJECT + BODY */}
       <div style={card}>
@@ -294,335 +155,46 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
             className="input"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            disabled={sending !== 'none'}
+            disabled={formDisabled}
             placeholder="A short, punchy subject"
-            maxLength={200}
+            style={{ width: '100%' }}
           />
-          <p style={muted}>{subjectCharCount}/200 characters. Keep it under 60 for best mobile preview.</p>
+          <p style={muted}>
+            <span style={{ color: subjectCharCount > 200 ? '#ff6b6b' : 'var(--text-3)' }}>
+              {subjectCharCount}
+            </span>{' '}
+            / 200 characters
+          </p>
         </div>
 
         <div>
-          <label className="label">Body (Markdown supported)</label>
+          <label className="label">Body (Markdown)</label>
           <textarea
             className="input"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            disabled={sending !== 'none'}
+            disabled={formDisabled}
+            placeholder="Write the email content. Markdown supported."
             rows={14}
-            style={{ fontFamily: 'monospace', fontSize: 13, lineHeight: 1.6 }}
-            placeholder={`Hey,\n\nA quick update — we're launching a new category next week...\n\n## What's changing\n\nSome details here.\n\n- Bullet point\n- Another bullet point\n\nThanks for reading.`}
+            style={{ width: '100%', fontFamily: 'monospace', fontSize: 13, lineHeight: 1.6, resize: 'vertical' }}
           />
           <p style={muted}>
             {charCount} characters · Supports <code style={inlineCode}>**bold**</code>,{' '}
             <code style={inlineCode}>*italic*</code>, <code style={inlineCode}>[link](url)</code>,{' '}
             <code style={inlineCode}>## heading</code>, <code style={inlineCode}>- list</code>,{' '}
-            <code style={inlineCode}>{'>'} quote</code>. The unsubscribe link is appended automatically.
+            <code style={inlineCode}>&gt; quote</code>. The unsubscribe link is appended automatically.
           </p>
         </div>
       </div>
 
-      {/* AUDIENCE PICKER */}
-      <div style={card}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Audience</div>
-        <p style={{ ...muted, marginBottom: 16 }}>
-          Choose who receives this broadcast. Default is everyone confirmed.
-        </p>
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <ModeBtn active={mode === 'all'} onClick={() => setMode('all')}>
-            All confirmed ({subscribers.length})
-          </ModeBtn>
-          <ModeBtn active={mode === 'source'} onClick={() => setMode('source')}>
-            By group
-          </ModeBtn>
-          <ModeBtn active={mode === 'pick'} onClick={() => setMode('pick')}>
-            Pick individuals
-          </ModeBtn>
-          <ModeBtn active={mode === 'random'} onClick={() => setMode('random')}>
-            Random sample
-          </ModeBtn>
-        </div>
-
-        {mode === 'source' && (
-          <div>
-            <p style={muted}>
-              Each subscriber has a group label (assigned at signup or via import). Pick one or more groups to include.
-            </p>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                gap: 8,
-                marginTop: 12,
-              }}
-            >
-              {sources.map(([src, count]) => {
-                const checked = selectedSources.has(src);
-                return (
-                  <label
-                    key={src}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      border: `1px solid ${checked ? 'var(--neon)' : 'var(--line)'}`,
-                      background: checked ? 'rgba(196,255,61,0.06)' : 'transparent',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleSource(src)}
-                      style={{ accentColor: 'var(--neon)' }}
-                    />
-                    <span style={{ flex: 1, fontFamily: 'monospace' }}>{src}</span>
-                    <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{count}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {mode === 'pick' && (
-          <div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-              <input
-                type="search"
-                placeholder="Search by email or source…"
-                value={pickerSearch}
-                onChange={(e) => setPickerSearch(e.target.value)}
-                className="input"
-                style={{ flex: 1, minWidth: 240 }}
-              />
-              <button onClick={selectAllVisible} className="btn btn-ghost" style={smallBtn}>
-                Select all visible
-              </button>
-              <button onClick={deselectAllVisible} className="btn btn-ghost" style={smallBtn}>
-                Deselect all visible
-              </button>
-            </div>
-            <div
-              style={{
-                maxHeight: 360,
-                overflowY: 'auto',
-                border: '1px solid var(--line)',
-                borderRadius: 8,
-                background: 'var(--bg-0)',
-              }}
-            >
-              {visiblePickerSubs.length === 0 ? (
-                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-                  No subscribers match.
-                </div>
-              ) : (
-                visiblePickerSubs.map((s, i) => {
-                  const checked = selectedIds.has(s.id);
-                  return (
-                    <label
-                      key={s.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '10px 14px',
-                        borderTop: i === 0 ? 'none' : '1px solid var(--line)',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        background: checked ? 'rgba(196,255,61,0.05)' : 'transparent',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => togglePicked(s.id)}
-                        style={{ accentColor: 'var(--neon)' }}
-                      />
-                      <span style={{ flex: 1, fontFamily: 'monospace' }}>{s.email}</span>
-                      {s.source && (
-                        <span style={{ color: 'var(--text-3)', fontSize: 11 }}>{s.source}</span>
-                      )}
-                    </label>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
-        {mode === 'random' && (
-          <div>
-            <p style={muted}>
-              Pick a random subset of subscribers, optionally combined with full groups you want to include
-              entirely. Useful for warming up domain reputation, A/B testing subject lines, or sending to
-              one engaged segment in full plus a sample of a larger list.
-            </p>
-
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 12, marginBottom: 16 }}>
-              <div>
-                <label className="label">How many to pick (random)</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={Math.max(1, randomPoolSize)}
-                  value={randomCount}
-                  onChange={(e) => setRandomCount(Math.max(1, parseInt(e.target.value, 10) || 0))}
-                  className="input"
-                  style={{ width: 140 }}
-                  disabled={randomPoolSize === 0}
-                />
-                <p style={{ ...muted, marginTop: 4 }}>
-                  Sample pool: <strong style={{ color: 'var(--text-2)' }}>{randomPoolSize.toLocaleString()}</strong>
-                  {randomFullSize > 0 && (
-                    <>
-                      {' '}· always-include:{' '}
-                      <strong style={{ color: 'var(--text-2)' }}>{randomFullSize.toLocaleString()}</strong>
-                    </>
-                  )}
-                  {(randomFromGroups.size > 0 || randomFullGroups.size > 0) && ' (filtered by selected groups)'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRandomSeed(Math.floor(Math.random() * 1e9))}
-                className="btn btn-ghost"
-                style={{ padding: '10px 16px', fontSize: 13 }}
-              >
-                ↻ Re-shuffle
-              </button>
-            </div>
-
-            {/* SAMPLE-FROM GROUPS */}
-            <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8 }}>
-                <strong style={{ color: 'var(--text-2)' }}>Sample from these groups</strong> (leave empty to sample from <strong>all</strong> confirmed subscribers):
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                  gap: 8,
-                }}
-              >
-                {sources.map(([src, count]) => {
-                  const checked = randomFromGroups.has(src);
-                  const lockedByFull = randomFullGroups.has(src);
-                  return (
-                    <label
-                      key={src}
-                      title={lockedByFull ? 'This group is set to "always include" — uncheck it there to sample from it instead.' : undefined}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '10px 12px',
-                        borderRadius: 8,
-                        border: `1px solid ${checked ? 'var(--neon)' : 'var(--line)'}`,
-                        background: checked ? 'rgba(196,255,61,0.06)' : 'transparent',
-                        cursor: lockedByFull ? 'not-allowed' : 'pointer',
-                        fontSize: 13,
-                        opacity: lockedByFull ? 0.4 : 1,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={lockedByFull}
-                        onChange={() => toggleRandomGroup(src)}
-                        style={{ accentColor: 'var(--neon)' }}
-                      />
-                      <span style={{ flex: 1, fontFamily: 'monospace' }}>{src}</span>
-                      <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{count.toLocaleString()}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* ALWAYS-INCLUDE GROUPS */}
-            <div style={{ marginTop: 20 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8 }}>
-                <strong style={{ color: 'var(--text-2)' }}>Always include everyone in these groups</strong> (added in full on top of the random sample, deduped):
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                  gap: 8,
-                }}
-              >
-                {sources.map(([src, count]) => {
-                  const checked = randomFullGroups.has(src);
-                  const lockedBySample = randomFromGroups.has(src);
-                  return (
-                    <label
-                      key={src}
-                      title={lockedBySample ? 'This group is in the sample pool — uncheck it there to include it in full instead.' : undefined}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '10px 12px',
-                        borderRadius: 8,
-                        border: `1px solid ${checked ? 'var(--neon)' : 'var(--line)'}`,
-                        background: checked ? 'rgba(196,255,61,0.06)' : 'transparent',
-                        cursor: lockedBySample ? 'not-allowed' : 'pointer',
-                        fontSize: 13,
-                        opacity: lockedBySample ? 0.4 : 1,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={lockedBySample}
-                        onChange={() => toggleRandomFullGroup(src)}
-                        style={{ accentColor: 'var(--neon)' }}
-                      />
-                      <span style={{ flex: 1, fontFamily: 'monospace' }}>{src}</span>
-                      <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{count.toLocaleString()}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* RECIPIENT BREAKDOWN */}
-            {(randomFullSize > 0 || randomCount > 0) && (
-              <div
-                style={{
-                  marginTop: 16,
-                  padding: '12px 14px',
-                  borderRadius: 8,
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid var(--line)',
-                  fontSize: 12,
-                  color: 'var(--text-2)',
-                  lineHeight: 1.6,
-                }}
-              >
-                Final recipients:{' '}
-                <strong style={{ color: 'var(--neon)' }}>{recipientCount.toLocaleString()}</strong>
-                {' '}={' '}
-                <strong>{Math.min(randomCount, randomPoolSize).toLocaleString()}</strong> random
-                {randomFullSize > 0 && (
-                  <>
-                    {' '}+ <strong>{randomFullSize.toLocaleString()}</strong> always-included
-                  </>
-                )}
-                {recipientCount > 5000 && (
-                  <span style={{ color: '#ff9b6b', display: 'block', marginTop: 4 }}>
-                    ⚠ Over the 5,000 per-broadcast limit. Reduce the count or remove an always-included group.
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* SHARED AUDIENCE PICKER */}
+      <AudiencePicker
+        subscribers={subscribers}
+        value={audience}
+        onChange={setAudience}
+        disabled={formDisabled}
+        intro="Choose who receives this broadcast. Default is everyone confirmed."
+      />
 
       {/* TEST SEND */}
       <div style={card}>
@@ -637,7 +209,7 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
             className="input"
             value={testEmail}
             onChange={(e) => setTestEmail(e.target.value)}
-            disabled={sending !== 'none'}
+            disabled={formDisabled}
             placeholder="you@example.com"
             style={{ flex: 1, minWidth: 240 }}
           />
@@ -666,12 +238,7 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
         <p style={{ ...muted, marginBottom: 16 }}>
           {recipientCount === 0 ? (
             <span style={{ color: '#ff9b6b' }}>
-              No recipients selected — choose &ldquo;All confirmed&rdquo; or pick at least one subscriber/source.
-            </span>
-          ) : recipientCount > 5000 && mode !== 'all' ? (
-            <span style={{ color: '#ff9b6b' }}>
-              {recipientCount.toLocaleString()} recipients exceeds the 5,000 per-broadcast limit. Reduce the count
-              or remove a group to continue.
+              No recipients selected — choose &ldquo;All confirmed&rdquo; or pick at least one subscriber/group.
             </span>
           ) : (
             <>
@@ -679,91 +246,50 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
               <strong style={{ color: 'var(--neon)' }}>
                 {recipientCount.toLocaleString()} subscriber{recipientCount === 1 ? '' : 's'}
               </strong>
-              . Each gets a unique unsubscribe link. The send is logged in the Newsletter log with open/click
-              tracking.
+              . Each gets a unique unsubscribe link. The send is logged in the Newsletter log with open/click tracking.
+              {recipientCount > 1000 && ' Large sends are processed in the background — you can leave this page open to watch progress.'}
             </>
           )}
         </p>
         <button
           onClick={sendBroadcast}
-          disabled={
-            !canSend ||
-            recipientCount === 0 ||
-            sending !== 'none' ||
-            (mode !== 'all' && recipientCount > 5000)
-          }
+          disabled={!canSend || recipientCount === 0 || sending !== 'none' || activeJobId !== null}
           className="btn btn-primary"
           style={{ padding: '12px 24px', fontSize: 14 }}
         >
           {sending === 'broadcast'
-            ? `Sending to ${recipientCount.toLocaleString()}…`
+            ? `Starting send to ${recipientCount.toLocaleString()}…`
             : `Send to ${recipientCount.toLocaleString()} subscriber${recipientCount === 1 ? '' : 's'} →`}
         </button>
       </div>
 
+      {/* MESSAGE BANNER */}
       {message && (
         <div
           style={{
-            padding: 16,
-            borderRadius: 12,
-            fontSize: 14,
-            lineHeight: 1.5,
-            marginBottom: 24,
+            padding: 14,
+            borderRadius: 8,
             background:
               message.kind === 'success'
-                ? 'rgba(196,255,61,0.07)'
+                ? 'rgba(196,255,61,0.08)'
                 : message.kind === 'error'
                 ? 'rgba(255,107,107,0.1)'
                 : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${
+            border:
               message.kind === 'success'
-                ? 'rgba(196,255,61,0.3)'
+                ? '1px solid rgba(196,255,61,0.3)'
                 : message.kind === 'error'
-                ? '#ff6b6b'
-                : 'var(--line-2)'
-            }`,
-            color:
-              message.kind === 'success'
-                ? 'var(--neon)'
-                : message.kind === 'error'
-                ? '#ff6b6b'
-                : 'var(--text)',
+                ? '1px solid rgba(255,107,107,0.3)'
+                : '1px solid var(--line)',
+            color: message.kind === 'success' ? 'var(--neon)' : message.kind === 'error' ? '#ff9b6b' : 'var(--text-2)',
+            fontSize: 13,
+            lineHeight: 1.5,
           }}
         >
           {message.text}
         </div>
       )}
     </div>
-  );
-}
-
-function ModeBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        padding: '8px 14px',
-        fontSize: 13,
-        fontWeight: 600,
-        border: `1px solid ${active ? 'var(--neon)' : 'var(--line-2)'}`,
-        background: active ? 'var(--neon)' : 'transparent',
-        color: active ? '#000' : 'var(--text-2)',
-        borderRadius: 8,
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-      }}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -788,9 +314,4 @@ const inlineCode: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 11,
   fontFamily: 'monospace',
-};
-
-const smallBtn: React.CSSProperties = {
-  padding: '8px 12px',
-  fontSize: 12,
 };

@@ -3,11 +3,29 @@ import { revalidatePath } from 'next/cache';
 import { checkAdminAuth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { readingMinutes } from '@/lib/anthropic';
-import { sendNewsletterEmail } from '@/lib/resend';
+import { createEmailJob, triggerWorker } from '@/lib/email-jobs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// Job creation is fast; 30s is plenty.
+export const maxDuration = 30;
 
+/**
+ * POST /api/admin/drafts/[id]
+ *
+ * Save / publish / reject a draft. On publish with `send_newsletter: true`, we
+ * ENQUEUE a newsletter job (no longer blasting synchronously). The publish
+ * response includes a job_id the client can poll for progress.
+ *
+ * Audience selection (NEW): when publishing, the client may pass an `audience`
+ * shape — same as the broadcast API:
+ *   audience: { mode: 'all' }                   → all confirmed subscribers
+ *   audience: { mode: 'list', subscriber_ids }  → just the listed ids
+ *   audience: undefined  (or send_newsletter:false) → no blast
+ *
+ * Server ALWAYS filters to status='confirmed' regardless of submitted IDs
+ * (defense in depth — buggy/malicious clients can't reach unsubscribed/bounced).
+ */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const auth = checkAdminAuth();
   if (!auth.ok) return auth.response;
@@ -22,6 +40,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     cover_image_url?: string | null;
     cover_image_credit?: string | null;
     send_newsletter?: boolean;
+    audience?: { mode: 'all' } | { mode: 'list'; subscriber_ids: string[] };
   };
   try {
     body = await request.json();
@@ -31,7 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const {
     action, title, slug, excerpt, category, content,
-    cover_image_url, cover_image_credit, send_newsletter,
+    cover_image_url, cover_image_credit, send_newsletter, audience,
   } = body;
 
   if (!action || !['save', 'publish', 'reject'].includes(action)) {
@@ -62,7 +81,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     if (action === 'save') return NextResponse.json({ ok: true });
 
-    // Publish
+    // ─── Publish ──────────────────────────────────────────────────────
     const { data: existing } = await supabaseAdmin
       .from('posts')
       .select('id')
@@ -102,17 +121,27 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       revalidatePath(`/articles/${post.category}`);
     }
 
-    let newsletterStats: { recipient_count: number; failed_count: number } | null = null;
+    // ─── Newsletter blast (now async via job system) ──────────────────
+    let newsletter: { job_id: string; send_id: string; total_recipients: number } | null = null;
 
     if (send_newsletter) {
-      newsletterStats = await sendBlastForPost(post.id);
+      // Resolve recipient IDs based on audience selection. Default to 'all' if
+      // no audience passed (backward-compatible with older clients).
+      const audienceMode = audience?.mode === 'list' ? 'list' : 'all';
+      const audienceIds = audience?.mode === 'list' ? audience.subscriber_ids : null;
+
+      const recipientIds = await resolveRecipientIds(audienceMode, audienceIds);
+      if (recipientIds.length > 0) {
+        newsletter = await enqueueNewsletterJob(post.id, post.title, recipientIds);
+      }
     }
 
     return NextResponse.json({
       ok: true,
       postSlug: post.slug,
       postCategory: post.category,
-      newsletter: newsletterStats,
+      postId: post.id,
+      newsletter,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Server error';
@@ -122,59 +151,100 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 }
 
 /**
- * Send the article to all confirmed subscribers, log each batch.
+ * Resolve audience selection to a list of confirmed-subscriber UUIDs.
+ *
+ * mode='all': page through all confirmed subscribers
+ * mode='list': intersect the supplied IDs with confirmed-status subscribers
+ *              (chunks the .in() query to keep URLs under ~8KB)
  */
-async function sendBlastForPost(postId: string) {
-  const { data: post } = await supabaseAdmin
-    .from('posts')
-    .select('*')
-    .eq('id', postId)
-    .single();
-  if (!post) return { recipient_count: 0, failed_count: 0 };
+async function resolveRecipientIds(
+  mode: 'all' | 'list',
+  suppliedIds: string[] | null
+): Promise<string[]> {
+  const PAGE = 1000;
+  const out: string[] = [];
 
-  const { data: subs } = await supabaseAdmin
-    .from('subscribers')
-    .select('id, email, unsubscribe_token')
-    .eq('status', 'confirmed');
-  const subscribers = subs || [];
+  if (mode === 'list' && suppliedIds) {
+    const ids = suppliedIds.filter((id): id is string => typeof id === 'string');
+    if (ids.length === 0) return [];
+    const URL_CHUNK = 200; // 200 * 36 chars ≈ 7.2KB, safely under URL limits
+    for (let i = 0; i < ids.length; i += URL_CHUNK) {
+      const chunk = ids.slice(i, i + URL_CHUNK);
+      const { data, error } = await supabaseAdmin
+        .from('subscribers')
+        .select('id')
+        .eq('status', 'confirmed')
+        .in('id', chunk);
+      if (error) {
+        console.error('[publish] recipient lookup failed:', error.message);
+        return out;
+      }
+      for (const row of data || []) out.push(row.id);
+    }
+    return out;
+  }
 
-  // Create a sending record
+  // mode === 'all'
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabaseAdmin
+      .from('subscribers')
+      .select('id')
+      .eq('status', 'confirmed')
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.error('[publish] recipient lookup failed:', error.message);
+      return out;
+    }
+    const batch = data || [];
+    for (const row of batch) out.push(row.id);
+    if (batch.length < PAGE) break;
+    from += PAGE;
+    if (from > 200000) break; // safety bail
+  }
+  return out;
+}
+
+/**
+ * Create newsletter_sends + email_jobs rows, kick the worker.
+ * Returns identifiers for client polling, or null on any failure.
+ */
+async function enqueueNewsletterJob(
+  postId: string,
+  postTitle: string,
+  ids: string[]
+): Promise<{ job_id: string; send_id: string; total_recipients: number } | null> {
+  if (ids.length === 0) return null;
+
   const { data: sendRow } = await supabaseAdmin
     .from('newsletter_sends')
     .insert({
       post_id: postId,
+      kind: 'post',
       status: 'sending',
-      recipient_count: subscribers.length,
+      recipient_count: ids.length,
       failed_count: 0,
     })
     .select()
     .single();
 
-  let failed = 0;
-  for (const sub of subscribers) {
-    const result = await sendNewsletterEmail({
-      email: sub.email,
-      unsubscribeToken: sub.unsubscribe_token,
-      postTitle: post.title,
-      postExcerpt: post.excerpt || '',
-      postSlug: post.slug,
-      postCoverUrl: post.cover_image_url,
-      postCategory: post.category,
-      sendId: sendRow?.id,
-    });
-    if (!result.ok) failed++;
-    else await supabaseAdmin.from('subscribers').update({ last_sent_at: new Date().toISOString() }).eq('id', sub.id);
-  }
+  if (!sendRow) return null;
 
-  if (sendRow) {
-    await supabaseAdmin
-      .from('newsletter_sends')
-      .update({
-        status: failed === subscribers.length && subscribers.length > 0 ? 'failed' : 'completed',
-        failed_count: failed,
-      })
-      .eq('id', sendRow.id);
-  }
+  const jobResult = await createEmailJob({
+    kind: 'newsletter',
+    subject: postTitle,
+    postId,
+    sendId: sendRow.id,
+    subscriberIds: ids,
+  });
 
-  return { recipient_count: subscribers.length, failed_count: failed };
+  if (!jobResult.ok) return null;
+
+  await triggerWorker(jobResult.job.id);
+
+  return {
+    job_id: jobResult.job.id,
+    send_id: sendRow.id,
+    total_recipients: ids.length,
+  };
 }

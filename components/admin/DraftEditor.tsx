@@ -1,19 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Draft, Category } from '@/lib/supabase';
+import { JobProgress } from './JobProgress';
+import {
+  AudiencePicker,
+  resolveAudience,
+  defaultAudienceValue,
+  type AudienceValue,
+  type Subscriber,
+} from './AudiencePicker';
 
 type Mode = 'edit' | 'preview';
 
-export function DraftEditor({ draft, categories }: { draft: Draft; categories: Category[] }) {
+export function DraftEditor({
+  draft,
+  categories,
+  subscribers,
+}: {
+  draft: Draft;
+  categories: Category[];
+  subscribers: Subscriber[];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<null | 'save' | 'publish' | 'reject'>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('edit');
   const [sendNewsletter, setSendNewsletter] = useState(true);
+
+  // After publish-with-newsletter, the response includes a job_id for
+  // background-send progress. We swap the editor for a "Article published"
+  // view with a JobProgress widget. The user can navigate away at any time;
+  // the send keeps running.
+  const [postPublishedTo, setPostPublishedTo] = useState<{ url: string; jobId: string | null } | null>(null);
 
   const [title, setTitle] = useState(draft.title);
   const [slug, setSlug] = useState(draft.slug);
@@ -22,6 +44,12 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
   const [content, setContent] = useState(draft.content);
   const [coverUrl, setCoverUrl] = useState(draft.cover_image_url ?? '');
   const [coverCredit, setCoverCredit] = useState(draft.cover_image_credit ?? '');
+
+  // Audience selection for the newsletter blast on publish.
+  // Default: 'all' (matches previous behavior of "Send to subscribers" checked).
+  const [audience, setAudience] = useState<AudienceValue>(() => defaultAudienceValue());
+
+  const resolvedAudience = useMemo(() => resolveAudience(subscribers, audience), [subscribers, audience]);
 
   // Unsplash picker state
   const [photoQuery, setPhotoQuery] = useState('');
@@ -49,6 +77,19 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
     setBusy(action);
     setError(null);
     try {
+      // Build publish payload. For non-publish actions, audience is irrelevant.
+      // For publish: server accepts either audience.mode='all' or an explicit
+      // subscriber_ids array. Same shape as the broadcast API for consistency.
+      const audiencePayload =
+        action === 'publish' && sendNewsletter
+          ? audience.mode === 'all'
+            ? { mode: 'all' as const }
+            : {
+                mode: 'list' as const,
+                subscriber_ids: resolvedAudience.recipients.map((r) => r.id),
+              }
+          : undefined;
+
       const res = await fetch(`/api/admin/drafts/${draft.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,6 +98,7 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
           cover_image_url: coverUrl || null,
           cover_image_credit: coverCredit || null,
           send_newsletter: action === 'publish' ? sendNewsletter : false,
+          audience: audiencePayload,
         }),
       });
       if (!res.ok) {
@@ -65,10 +107,15 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
       }
       const data = await res.json();
       if (action === 'publish' && data.postSlug) {
-        if (data.newsletter && data.newsletter.recipient_count > 0) {
-          alert(`Published. Newsletter sent to ${data.newsletter.recipient_count} subscribers (${data.newsletter.failed_count} failed).`);
-        }
         const liveUrl = data.postCategory ? `/articles/${data.postCategory}/${data.postSlug}` : `/articles`;
+
+        // If a newsletter job was kicked off, stay on the page and show progress.
+        // Otherwise navigate to the article immediately.
+        if (data.newsletter && data.newsletter.job_id) {
+          setPostPublishedTo({ url: liveUrl, jobId: data.newsletter.job_id });
+          return;
+        }
+
         router.push(liveUrl);
         return;
       }
@@ -84,6 +131,43 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
     }
   }
 
+  // ─── Post-publish view: show send progress ──────────────────────────
+  if (postPublishedTo) {
+    return (
+      <div style={{ padding: 32, maxWidth: 920, margin: '0 auto' }}>
+        <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>
+          Article published
+        </h1>
+        <p style={{ color: 'var(--text-2)', marginBottom: 32, lineHeight: 1.6 }}>
+          The article is now live. The newsletter is sending in the background — you can watch progress below or
+          leave this page (the send continues regardless).
+        </p>
+
+        {postPublishedTo.jobId && <JobProgress jobId={postPublishedTo.jobId} />}
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={() => router.push(postPublishedTo.url)}
+            className="btn btn-primary"
+            style={{ padding: '10px 18px', fontSize: 13 }}
+          >
+            View article →
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push('/admin/newsletter')}
+            className="btn btn-ghost"
+            style={{ padding: '10px 18px', fontSize: 13 }}
+          >
+            Go to newsletter log
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Normal edit view ───────────────────────────────────────────────
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
@@ -162,10 +246,7 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
           </div>
 
           {/* COVER IMAGE */}
-          <div
-            className="p-5 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--line)' }}
-          >
+          <div className="p-5 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--line)' }}>
             <label className="label">Cover image</label>
             {coverUrl && (
               <div className="mb-3 relative rounded-lg overflow-hidden" style={{ aspectRatio: '21/9' }}>
@@ -181,13 +262,19 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
                   Search Unsplash for a different photo:
                 </p>
                 <div className="flex gap-2 mb-3">
-                  <input value={photoQuery} onChange={(e) => setPhotoQuery(e.target.value)} placeholder="e.g. barbell deadlift" className="input flex-1" />
-                  <button type="button" onClick={searchPhotos} disabled={photoBusy} className="btn btn-ghost shrink-0">
+                  <input
+                    value={photoQuery}
+                    onChange={(e) => setPhotoQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), searchPhotos())}
+                    className="input flex-1"
+                    placeholder="e.g. running track, kettlebell"
+                  />
+                  <button type="button" onClick={searchPhotos} disabled={photoBusy} className="btn btn-ghost">
                     {photoBusy ? 'Searching…' : 'Search'}
                   </button>
                 </div>
                 {photoOptions.length > 0 && (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {photoOptions.map((p) => (
                       <button
                         key={p.url}
@@ -196,8 +283,8 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
                           setCoverUrl(p.url);
                           setCoverCredit(p.credit);
                         }}
-                        className="aspect-video rounded-lg overflow-hidden border-2 transition-colors hover:border-[var(--neon)]"
-                        style={{ borderColor: coverUrl === p.url ? 'var(--neon)' : 'transparent' }}
+                        className="block rounded overflow-hidden"
+                        style={{ aspectRatio: '4/3', border: '1px solid var(--line)' }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={p.url} alt="" className="w-full h-full object-cover" />
@@ -210,15 +297,30 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
           </div>
 
           <div>
-            <label className="label">Content (Markdown)</label>
-            <textarea value={content} onChange={(e) => setContent(e.target.value)} disabled={isReadOnly} rows={28} className="input font-mono resize-y" spellCheck />
+            <label className="label">Content</label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              disabled={isReadOnly}
+              rows={24}
+              className="input font-mono resize-y"
+              style={{ fontSize: 13, lineHeight: 1.6 }}
+            />
           </div>
+
+          {/* AUDIENCE PICKER (only for active drafts, when newsletter blast is enabled) */}
+          {!isReadOnly && sendNewsletter && (
+            <AudiencePicker
+              subscribers={subscribers}
+              value={audience}
+              onChange={setAudience}
+              disabled={busy !== null}
+              intro="Choose who receives the newsletter blast on publish. Useful for sending to a sample (e.g. 2,500/week) instead of everyone, while keeping engaged groups in full."
+            />
+          )}
         </div>
       ) : (
-        <div
-          className="p-8 rounded-2xl"
-          style={{ background: 'var(--bg-1)', border: '1px solid var(--line)' }}
-        >
+        <div className="p-8 rounded-2xl" style={{ background: 'var(--bg-1)', border: '1px solid var(--line)' }}>
           {coverUrl && (
             <div className="mb-8 rounded-xl overflow-hidden" style={{ aspectRatio: '21/9' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -241,15 +343,19 @@ export function DraftEditor({ draft, categories }: { draft: Draft; categories: C
 
       {!isReadOnly && (
         <div
-          className="mt-10 flex flex-wrap gap-3 sticky bottom-4 p-4 rounded-xl backdrop-blur-md"
+          className="mt-10 flex flex-wrap items-center gap-3 sticky bottom-4 p-4 rounded-xl backdrop-blur-md"
           style={{ background: 'rgba(10,10,13,0.85)', border: '1px solid var(--line-2)' }}
         >
           <button type="button" onClick={() => call('publish')} disabled={busy !== null} className="btn btn-primary">
-            {busy === 'publish' ? 'Publishing…' : 'Publish post →'}
+            {busy === 'publish'
+              ? 'Publishing…'
+              : sendNewsletter
+              ? `Publish + send to ${resolvedAudience.recipientCount.toLocaleString()} →`
+              : 'Publish post →'}
           </button>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-2)', padding: '0 12px' }}>
             <input type="checkbox" checked={sendNewsletter} onChange={(e) => setSendNewsletter(e.target.checked)} />
-            Send to subscribers on publish
+            Send newsletter on publish
           </label>
           <button type="button" onClick={() => call('save')} disabled={busy !== null} className="btn btn-ghost">
             {busy === 'save' ? 'Saving…' : 'Save changes'}
