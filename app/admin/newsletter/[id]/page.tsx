@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ResendPanel } from '@/components/admin/ResendPanel';
+import { SendEventsTable } from '@/components/admin/SendEventsTable';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,8 +19,6 @@ type SendRow = {
   failed_count: number;
   opened_count: number;
   clicked_count: number;
-  bounced_count: number;
-  complained_count: number;
   status: string;
   notes: string | null;
   post_id: string | null;
@@ -174,8 +173,6 @@ export default async function SendDetailPage({ params }: { params: { id: string 
         <Stat label="Recipients" value={sendRow.recipient_count.toLocaleString()} />
         <Stat label="Delivered" value={delivered.toLocaleString()} />
         <Stat label="Failed" value={sendRow.failed_count.toLocaleString()} accent={sendRow.failed_count > 0 ? '#ff6b6b' : undefined} />
-        <Stat label="Bounced" value={`${(sendRow.bounced_count || 0).toLocaleString()} · ${pct(sendRow.bounced_count || 0, delivered)}`} accent={(sendRow.bounced_count || 0) > 0 ? '#ff9b6b' : undefined} />
-        <Stat label="Complaints" value={`${(sendRow.complained_count || 0).toLocaleString()} · ${pct(sendRow.complained_count || 0, delivered)}`} accent={(sendRow.complained_count || 0) > 0 ? '#ff6b6b' : undefined} />
         <Stat label="Unique opens" value={`${sendRow.opened_count} · ${pct(sendRow.opened_count, delivered)}`} accent="var(--neon)" />
         <Stat label="Unique clicks" value={`${sendRow.clicked_count} · ${pct(sendRow.clicked_count, delivered)}`} accent="var(--neon)" />
       </div>
@@ -227,54 +224,15 @@ export default async function SendDetailPage({ params }: { params: { id: string 
         </div>
       )}
 
-      {/* Full event log */}
+      {/* Recipients view (grouped + filtered + paginated) */}
       <div>
-        <h2 style={sectionH}>All events ({events.length})</h2>
-        {events.length === 0 ? (
-          <div style={{ padding: 24, color: 'var(--text-3)', fontSize: 13, textAlign: 'center', background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12 }}>
-            No tracking events yet. Opens and clicks will appear here as they arrive.
-          </div>
-        ) : (
-          <div style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', textAlign: 'left' }}>
-                  <th style={th}>When</th>
-                  <th style={th}>Event</th>
-                  <th style={th}>Recipient</th>
-                  <th style={th}>Link / Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((ev) => (
-                  <tr key={ev.id} style={{ borderTop: '1px solid var(--line)' }}>
-                    <td style={{ ...td, color: 'var(--text-3)', fontSize: 12, whiteSpace: 'nowrap' }}>
-                      {new Date(ev.occurred_at).toLocaleString()}
-                    </td>
-                    <td style={td}>
-                      <EventBadge type={ev.event_type} />
-                    </td>
-                    <td style={{ ...td, fontFamily: 'monospace', fontSize: 12 }}>{ev.email}</td>
-                    <td style={{ ...td, fontSize: 12, color: 'var(--text-2)', wordBreak: 'break-all' }}>
-                      {ev.link_url ? (
-                        <a href={ev.link_url} target="_blank" rel="noreferrer" style={{ color: 'var(--neon)', textDecoration: 'none' }}>
-                          {ev.link_url}
-                        </a>
-                      ) : (
-                        <span style={{ color: 'var(--text-3)' }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <h2 style={sectionH}>Recipients ({new Set(events.map((e) => e.email)).size.toLocaleString()})</h2>
+        <SendEventsTable events={events} />
       </div>
 
       <p style={{ marginTop: 16, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
         Top clicked links is sorted by unique clickers (one row per recipient even if they clicked twice).
-        The full event log shows every raw event including duplicates from the same recipient.
+        The recipients table groups all events by email — click a row to expand the full event timeline for that person.
       </p>
     </div>
   );
@@ -286,36 +244,6 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
       <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)', marginBottom: 6 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 700, color: accent || 'var(--text)' }}>{value}</div>
     </div>
-  );
-}
-
-function EventBadge({ type }: { type: string }) {
-  const colors: Record<string, { bg: string; fg: string }> = {
-    sent: { bg: 'rgba(255,255,255,0.06)', fg: 'var(--text-2)' },
-    delivered: { bg: 'rgba(196,255,61,0.10)', fg: 'var(--neon)' },
-    delivery_delayed: { bg: 'rgba(255,184,77,0.15)', fg: '#ffb84d' },
-    opened: { bg: 'rgba(0,229,255,0.15)', fg: 'var(--neon-2, #00e5ff)' },
-    clicked: { bg: 'rgba(196,255,61,0.20)', fg: 'var(--neon)' },
-    bounced: { bg: 'rgba(255,107,107,0.15)', fg: '#ff6b6b' },
-    complained: { bg: 'rgba(255,107,107,0.15)', fg: '#ff6b6b' },
-  };
-  const c = colors[type] || colors.sent;
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        background: c.bg,
-        color: c.fg,
-        padding: '2px 8px',
-        fontSize: 11,
-        fontWeight: 600,
-        borderRadius: 100,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-      }}
-    >
-      {type.replace('_', ' ')}
-    </span>
   );
 }
 
