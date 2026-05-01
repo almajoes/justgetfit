@@ -104,8 +104,14 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
       setActiveJobId(data.job_id);
       setMessage({
         kind: 'success',
-        text: `Send started for ${data.total_recipients.toLocaleString()} subscriber${data.total_recipients === 1 ? '' : 's'}. Progress shown below.`,
+        text: `Send started for ${data.total_recipients.toLocaleString()} subscriber${data.total_recipients === 1 ? '' : 's'}. Watch progress at the top of the page.`,
       });
+      // Scroll up so the progress widget is in view — without this, the user
+      // sees a "send started" banner at the bottom of a long form and has to
+      // hunt for the progress widget which renders at the top.
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       setSubject('');
       setBody('');
       setAudience(defaultAudienceValue());
