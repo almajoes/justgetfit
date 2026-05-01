@@ -6,13 +6,16 @@ import type { Subscriber } from '@/lib/supabase';
 
 type Stats = { total: number; confirmed: number; pending: number; unsubscribed: number };
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 export function SubscribersClient({ subscribers, stats }: { subscribers: Subscriber[]; stats: Stats }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'confirmed' | 'pending' | 'unsubscribed'>('all');
   const [page, setPage] = useState(1);
+  // Sort state — pick a column and direction
+  const [sortKey, setSortKey] = useState<'email' | 'status' | 'group' | 'subscribed'>('subscribed');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   // Bulk-select state. Set of subscriber IDs the user has ticked in the table.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -23,10 +26,34 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
     return true;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Sort the filtered list. Sorting is purely client-side — fine since the whole
+  // subscriber list is loaded at page render time, and JS Array.sort handles 10k+
+  // rows in milliseconds.
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === 'email') {
+      cmp = a.email.localeCompare(b.email);
+    } else if (sortKey === 'status') {
+      // Custom order so confirmed > pending > unsubscribed feels natural rather than alphabetical
+      const order: Record<string, number> = { confirmed: 0, pending: 1, unsubscribed: 2, bounced: 3 };
+      cmp = (order[a.status] ?? 99) - (order[b.status] ?? 99);
+    } else if (sortKey === 'group') {
+      // NULL/empty groups sort last in asc, first in desc — common-sense behavior
+      const ag = a.source || '';
+      const bg = b.source || '';
+      if (!ag && bg) cmp = 1;
+      else if (ag && !bg) cmp = -1;
+      else cmp = ag.localeCompare(bg);
+    } else if (sortKey === 'subscribed') {
+      cmp = new Date(a.subscribed_at).getTime() - new Date(b.subscribed_at).getTime();
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const start = (safePage - 1) * PAGE_SIZE;
-  const visible = filtered.slice(start, start + PAGE_SIZE);
+  const visible = sorted.slice(start, start + PAGE_SIZE);
 
   function setFilterAndReset(f: typeof filter) {
     setFilter(f);
@@ -34,6 +61,18 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
   }
   function setSearchAndReset(s: string) {
     setSearch(s);
+    setPage(1);
+  }
+
+  // Click a column header to sort. Same column twice flips direction.
+  function toggleSort(key: typeof sortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      // Sensible defaults per column: alphabetical → asc, dates → desc
+      setSortDir(key === 'subscribed' ? 'desc' : 'asc');
+    }
     setPage(1);
   }
 
@@ -281,10 +320,18 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
                   title="Toggle all on this page"
                 />
               </th>
-              <th style={th}>Email</th>
-              <th style={th}>Status</th>
-              <th style={th}>Group</th>
-              <th style={th}>Subscribed</th>
+              <th style={th}>
+                <SortHeader label="Email" active={sortKey === 'email'} dir={sortDir} onClick={() => toggleSort('email')} />
+              </th>
+              <th style={th}>
+                <SortHeader label="Status" active={sortKey === 'status'} dir={sortDir} onClick={() => toggleSort('status')} />
+              </th>
+              <th style={th}>
+                <SortHeader label="Group" active={sortKey === 'group'} dir={sortDir} onClick={() => toggleSort('group')} />
+              </th>
+              <th style={th}>
+                <SortHeader label="Subscribed" active={sortKey === 'subscribed'} dir={sortDir} onClick={() => toggleSort('subscribed')} />
+              </th>
               <th style={th}>Last Sent</th>
               <th style={{ ...th, textAlign: 'right' }}>Actions</th>
             </tr>
@@ -398,6 +445,46 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
         </div>
       )}
     </div>
+  );
+}
+
+function SortHeader({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: 'asc' | 'desc';
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: 'transparent',
+        border: 'none',
+        padding: 0,
+        margin: 0,
+        cursor: 'pointer',
+        font: 'inherit',
+        color: 'inherit',
+        textTransform: 'inherit',
+        letterSpacing: 'inherit',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        opacity: active ? 1 : 0.85,
+      }}
+      title={`Sort by ${label}`}
+    >
+      {label}
+      <span style={{ fontSize: 9, opacity: active ? 1 : 0.4, color: active ? 'var(--neon)' : 'inherit' }}>
+        {active ? (dir === 'asc' ? '▲' : '▼') : '↕'}
+      </span>
+    </button>
   );
 }
 
