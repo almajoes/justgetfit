@@ -28,6 +28,7 @@ export default async function SubscribersAdminPage() {
         'id, email, status, source, confirmation_token, unsubscribe_token, subscribed_at, confirmed_at, unsubscribed_at, last_sent_at'
       )
       .order('subscribed_at', { ascending: false })
+      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
 
     if (error) {

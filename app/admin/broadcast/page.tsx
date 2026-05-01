@@ -28,6 +28,7 @@ export default async function BroadcastAdminPage() {
       .select('id, email, source, subscribed_at')
       .eq('status', 'confirmed')
       .order('subscribed_at', { ascending: false })
+      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
 
     const batch = (data as SubRow[]) || [];

@@ -63,8 +63,27 @@ export function defaultAudienceValue(): AudienceValue {
 /**
  * Resolve the audience selection to the actual recipient list and counts.
  * Pure function so the parent can call it for display + send payload.
+ *
+ * Defensive: dedupes the incoming subscribers array by id first. Server-side
+ * pagination with `.range()` over a non-unique sort key (e.g. `subscribed_at`)
+ * can return the same row on two pages when many rows share a timestamp,
+ * which would otherwise cause "picked 2 → shows 4" and "sample 1000 → shows
+ * 999" bugs depending on which mode is active. We dedup once here so all the
+ * downstream logic (sample pool size, Fisher-Yates, dedup loop) operates on
+ * a clean unique-id array.
  */
 export function resolveAudience(subscribers: Subscriber[], v: AudienceValue): AudienceResolved {
+  // Dedup by id first — see comment above
+  const seenIds = new Set<string>();
+  const uniqueSubs: Subscriber[] = [];
+  for (const s of subscribers) {
+    if (!seenIds.has(s.id)) {
+      seenIds.add(s.id);
+      uniqueSubs.push(s);
+    }
+  }
+  subscribers = uniqueSubs;
+
   if (v.mode === 'all') {
     return {
       recipients: subscribers,
@@ -138,7 +157,7 @@ export function resolveAudience(subscribers: Subscriber[], v: AudienceValue): Au
 }
 
 export function AudiencePicker({
-  subscribers,
+  subscribers: rawSubscribers,
   value,
   onChange,
   disabled,
@@ -150,6 +169,22 @@ export function AudiencePicker({
   disabled?: boolean;
   intro?: string;
 }) {
+  // Defensive dedup of incoming subscribers by id — see resolveAudience() for
+  // the full explanation. Without this, pagination duplicates from the server
+  // would break: pick-mode counts ("picked 2 → 4"), random-mode sample size
+  // ("sample 1000 → 999"), source-mode counts in the group grids, etc.
+  const subscribers = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Subscriber[] = [];
+    for (const s of rawSubscribers) {
+      if (!seen.has(s.id)) {
+        seen.add(s.id);
+        out.push(s);
+      }
+    }
+    return out;
+  }, [rawSubscribers]);
+
   const [pickerSearch, setPickerSearch] = useState('');
 
   const sources = useMemo(() => {
@@ -408,6 +443,9 @@ export function AudiencePicker({
             </div>
             <p style={muted}>
               Sample pool: <strong>{randomPoolSize.toLocaleString()}</strong>
+              {value.randomFromGroups.size === 0 && value.randomFullGroups.size === 0 && (
+                <span style={{ color: '#ffb84d' }}> · sampling from all confirmed subscribers (no groups selected below)</span>
+              )}
               {randomFullSize > 0 && (
                 <>
                   {' '}· always-include: <strong>{randomFullSize.toLocaleString()}</strong>
