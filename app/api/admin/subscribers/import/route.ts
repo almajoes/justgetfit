@@ -15,6 +15,15 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * Bulk-imports subscribers, marking them as 'confirmed' immediately.
  * No confirmation emails sent — caller is asserting these have already opted in.
  *
+ * Strategy: Instead of pre-checking for duplicates with IN clauses (which hit
+ * URL length limits with large lists), we attempt the insert and rely on the
+ * unique constraint on `subscribers.email` to reject duplicates. PostgreSQL's
+ * `ON CONFLICT DO NOTHING` is perfect for this — supabase-js exposes it as
+ * `upsert(..., { onConflict: 'email', ignoreDuplicates: true })`.
+ *
+ * To report how many were duplicates vs new, we count the rows actually
+ * inserted (the .select() return) and compute the difference.
+ *
  * Request body:
  *   { emails: string[], source?: string }
  *
@@ -33,7 +42,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'emails must be an array of strings' }, { status: 400 });
   }
 
-  const source = typeof body.source === 'string' && body.source.trim() ? body.source.trim().slice(0, 80) : 'import';
+  const source =
+    typeof body.source === 'string' && body.source.trim()
+      ? body.source.trim().slice(0, 80)
+      : 'import';
 
   // Server-side validation + dedup. We trust nothing from the client.
   const seen = new Set<string>();
@@ -57,28 +69,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Find which emails already exist so we can report them separately.
-  // We page through in chunks of 1000 to avoid hitting Postgres IN-clause limits.
-  const existing = new Set<string>();
-  for (let i = 0; i < cleaned.length; i += 1000) {
-    const slice = cleaned.slice(i, i + 1000);
-    const { data, error } = await supabaseAdmin
-      .from('subscribers')
-      .select('email')
-      .in('email', slice);
-    if (error) {
-      return NextResponse.json({ error: `Lookup failed: ${error.message}` }, { status: 500 });
-    }
-    (data || []).forEach((r) => existing.add(r.email as string));
-  }
-
-  const toInsert = cleaned.filter((e) => !existing.has(e));
-
-  // Build rows. Each subscriber needs a unique confirmation_token + unsubscribe_token
+  // Build all rows up front. Each subscriber needs a unique confirmation_token + unsubscribe_token
   // (NOT NULL in schema). The unsubscribe_token is what gets used in the
   // unsubscribe link footer of newsletters, so it must be unique per subscriber.
   const now = new Date().toISOString();
-  const rows = toInsert.map((email) => ({
+  const rows = cleaned.map((email) => ({
     email,
     status: 'confirmed' as const,
     confirmation_token: generateToken(),
@@ -88,14 +83,16 @@ export async function POST(req: NextRequest) {
     confirmed_at: now,
   }));
 
-  // Insert in batches of 500 to keep payloads small and avoid timeouts on bigger lists.
+  // Insert in batches of 500. Use upsert with ignoreDuplicates so existing
+  // emails are silently skipped instead of failing the batch. The .select('id')
+  // returns ONLY the rows actually inserted, which is how we count new vs. dup.
   const errors: string[] = [];
   let inserted = 0;
   for (let i = 0; i < rows.length; i += 500) {
     const batch = rows.slice(i, i + 500);
-    const { error, data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('subscribers')
-      .insert(batch)
+      .upsert(batch, { onConflict: 'email', ignoreDuplicates: true })
       .select('id');
     if (error) {
       // Per-batch error — record it but keep trying remaining batches
@@ -105,9 +102,14 @@ export async function POST(req: NextRequest) {
     inserted += data?.length ?? 0;
   }
 
+  // Anything that wasn't inserted was either a duplicate of an existing row
+  // OR landed in a failed batch. We don't try to distinguish — duplicates are
+  // expected, batch failures are reported via the errors array.
+  const alreadyExisted = cleaned.length - inserted - errors.length * 500;
+
   return NextResponse.json({
     inserted,
-    alreadyExisted: existing.size,
+    alreadyExisted: Math.max(0, alreadyExisted),
     errors,
   });
 }
