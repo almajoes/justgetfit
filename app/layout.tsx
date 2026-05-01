@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { getSiteSettings, getSiteCode } from '@/lib/cms';
+import { Analytics } from '@vercel/analytics/next';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
 
@@ -188,6 +189,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             suppressHydrationWarning
           />
         )}
+        <Analytics />
       </body>
     </html>
   );
