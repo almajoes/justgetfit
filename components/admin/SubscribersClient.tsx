@@ -236,15 +236,29 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Row 1: full-width email search */}
+      <div style={{ marginBottom: 12 }}>
         <input
           type="search"
           placeholder="Search by email…"
           value={search}
           onChange={(e) => setSearchAndReset(e.target.value)}
           className="input"
-          style={{ flex: 1, minWidth: 240, maxWidth: 360 }}
+          style={{ width: '100%', boxSizing: 'border-box' }}
         />
+      </div>
+
+      {/* Row 2: status filters + group dropdown + import/export, spanning full width */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          marginBottom: 16,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          width: '100%',
+        }}
+      >
         {(['all', 'confirmed', 'pending', 'unsubscribed'] as const).map((f) => {
           const count = f === 'all' ? stats.total : stats[f];
           return (
@@ -276,7 +290,6 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
             fontSize: 13,
             maxWidth: 240,
             cursor: 'pointer',
-            // Highlight when an actual group filter is active
             borderColor: groupFilter !== '__all' ? 'var(--neon)' : undefined,
           }}
           title="Filter by group label"
