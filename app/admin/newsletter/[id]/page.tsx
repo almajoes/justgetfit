@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { ResendPanel } from '@/components/admin/ResendPanel';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -19,6 +20,7 @@ type SendRow = {
   clicked_count: number;
   status: string;
   notes: string | null;
+  post_id: string | null;
   posts?: { title: string; slug: string; category: string | null } | null;
 };
 
@@ -31,13 +33,50 @@ type EventRow = {
   occurred_at: string;
 };
 
+type SubRow = {
+  id: string;
+  email: string;
+  source: string | null;
+  subscribed_at: string;
+};
+
 function pct(n: number, d: number): string {
   if (!d) return '—';
   return `${((n / d) * 100).toFixed(1)}%`;
 }
 
+/**
+ * Pull all confirmed subscribers for the AudiencePicker inside ResendPanel.
+ * Same paging strategy as /admin/broadcast/page.tsx — Supabase REST default
+ * limit is 1,000 rows so we page with .range().
+ *
+ * Only called when the send is `kind='post'` (broadcasts can't be re-sent
+ * via this endpoint — their content lives in newsletter_sends, not posts).
+ */
+async function loadConfirmedSubscribers(): Promise<SubRow[]> {
+  const PAGE = 1000;
+  let all: SubRow[] = [];
+  let from = 0;
+  while (true) {
+    const { data } = await supabaseAdmin
+      .from('subscribers')
+      .select('id, email, source, subscribed_at')
+      .eq('status', 'confirmed')
+      .order('subscribed_at', { ascending: false })
+      .range(from, from + PAGE - 1);
+    const batch = (data as SubRow[]) || [];
+    all = all.concat(batch);
+    if (batch.length < PAGE) break;
+    from += PAGE;
+    if (from > 200000) break; // safety bail
+  }
+  return all;
+}
+
 export default async function SendDetailPage({ params }: { params: { id: string } }) {
-  // Fetch the send + post info in one query
+  // Fetch the send + post info in one query (also pull post_id explicitly so
+  // the ResendPanel can target the post even if `posts(...)` join returns null
+  // due to deletion).
   const { data: send } = await supabaseAdmin
     .from('newsletter_sends')
     .select('*, posts(title, slug, category)')
@@ -46,6 +85,11 @@ export default async function SendDetailPage({ params }: { params: { id: string 
   if (!send) notFound();
 
   const sendRow = send as SendRow;
+
+  // Only fetch subscriber list when the ResendPanel will actually render —
+  // skip the (potentially expensive) paginated fetch for broadcast-kind sends.
+  const subscribers: SubRow[] =
+    sendRow.kind === 'post' && sendRow.post_id ? await loadConfirmedSubscribers() : [];
 
   // Fetch all events for this send, newest first
   const { data: eventsData } = await supabaseAdmin
@@ -81,6 +125,10 @@ export default async function SendDetailPage({ params }: { params: { id: string 
     sendRow.kind === 'broadcast'
       ? sendRow.subject || '(no subject)'
       : sendRow.posts?.title || '(deleted post)';
+
+  // ResendPanel only available for kind='post' rows where the post still exists
+  // (post_id non-null AND posts join returned data).
+  const canResend = sendRow.kind === 'post' && sendRow.post_id && sendRow.posts;
 
   return (
     <div style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
@@ -127,6 +175,17 @@ export default async function SendDetailPage({ params }: { params: { id: string 
         <Stat label="Unique opens" value={`${sendRow.opened_count} · ${pct(sendRow.opened_count, delivered)}`} accent="var(--neon)" />
         <Stat label="Unique clicks" value={`${sendRow.clicked_count} · ${pct(sendRow.clicked_count, delivered)}`} accent="var(--neon)" />
       </div>
+
+      {/* RE-SEND PANEL — only for kind='post' with an existing post */}
+      {canResend && (
+        <ResendPanel
+          postId={sendRow.post_id!}
+          postTitle={sendRow.posts!.title}
+          subscribers={subscribers}
+          buttonLabel="Re-send to a different audience →"
+          intro="Send this article again to any audience selection. A new entry is created in the send log; this one is preserved."
+        />
+      )}
 
       {/* Top clicked links */}
       {clicksRanked.length > 0 && (

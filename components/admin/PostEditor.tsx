@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Post, Category } from '@/lib/supabase';
+import { ResendPanel } from './ResendPanel';
+import type { Subscriber } from './AudiencePicker';
 
 /**
  * Convert an ISO timestamp (UTC, e.g. "2026-04-29T13:00:00Z") to the format
@@ -31,7 +33,15 @@ function fromDatetimeLocal(local: string): string | null {
   return d.toISOString();
 }
 
-export function PostEditor({ post, categories }: { post: Post; categories: Category[] }) {
+export function PostEditor({
+  post,
+  categories,
+  subscribers,
+}: {
+  post: Post;
+  categories: Category[];
+  subscribers: Subscriber[];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<null | 'save' | 'delete'>(null);
   const [error, setError] = useState<string | null>(null);
@@ -227,7 +237,17 @@ export function PostEditor({ post, categories }: { post: Post; categories: Categ
         </div>
       )}
 
-      <div className="mt-10 flex flex-wrap gap-3 sticky bottom-4 p-4 rounded-xl backdrop-blur-md" style={{ background: 'rgba(10,10,13,0.85)', border: '1px solid var(--line-2)' }}>
+      <div className="mt-10">
+        <ResendPanel
+          postId={post.id}
+          postTitle={post.title}
+          subscribers={subscribers}
+          buttonLabel="Send to subscribers →"
+          intro="Send this article to subscribers on the fly — useful for ad-hoc requests, fulfilling one-off shares, or warm-up sends to specific groups."
+        />
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-3 sticky bottom-4 p-4 rounded-xl backdrop-blur-md" style={{ background: 'rgba(10,10,13,0.85)', border: '1px solid var(--line-2)' }}>
         <button onClick={save} disabled={busy !== null} className="btn btn-primary">
           {busy === 'save' ? 'Saving…' : 'Save changes'}
         </button>
