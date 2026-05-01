@@ -19,9 +19,36 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
   // Bulk-select state. Set of subscriber IDs the user has ticked in the table.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Group filter — '__all' means no group filter applied. '__none' means show only ungrouped.
+  // Any other value matches subscribers with that exact source/group label.
+  const [groupFilter, setGroupFilter] = useState<string>('__all');
+
+  // Compute distinct groups + counts for the dropdown.
+  // We compute this from the FULL subscriber list (not the already-filtered one)
+  // so the dropdown options stay stable as the user changes other filters.
+  const groupOptions = (() => {
+    const map = new Map<string, number>();
+    let ungrouped = 0;
+    for (const s of subscribers) {
+      if (s.source && s.source.trim()) {
+        const k = s.source.trim();
+        map.set(k, (map.get(k) || 0) + 1);
+      } else {
+        ungrouped += 1;
+      }
+    }
+    // Sort by count descending so the biggest groups appear first
+    const named = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+    return { named, ungrouped };
+  })();
 
   const filtered = subscribers.filter((s) => {
     if (filter !== 'all' && s.status !== filter) return false;
+    if (groupFilter === '__none') {
+      if (s.source && s.source.trim()) return false;
+    } else if (groupFilter !== '__all') {
+      if ((s.source || '').trim() !== groupFilter) return false;
+    }
     if (search && !s.email.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -61,6 +88,10 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
   }
   function setSearchAndReset(s: string) {
     setSearch(s);
+    setPage(1);
+  }
+  function setGroupFilterAndReset(g: string) {
+    setGroupFilter(g);
     setPage(1);
   }
 
@@ -234,6 +265,45 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
             </button>
           );
         })}
+
+        {/* Group dropdown — '__all' is no filter, '__none' is ungrouped only */}
+        <select
+          value={groupFilter}
+          onChange={(e) => setGroupFilterAndReset(e.target.value)}
+          className="input"
+          style={{
+            padding: '8px 12px',
+            fontSize: 13,
+            maxWidth: 240,
+            cursor: 'pointer',
+            // Highlight when an actual group filter is active
+            borderColor: groupFilter !== '__all' ? 'var(--neon)' : undefined,
+          }}
+          title="Filter by group label"
+        >
+          <option value="__all">All groups ({stats.total})</option>
+          {groupOptions.ungrouped > 0 && (
+            <option value="__none">— No group ({groupOptions.ungrouped})</option>
+          )}
+          {groupOptions.named.length > 0 && <option disabled>──────────</option>}
+          {groupOptions.named.map(([name, count]) => (
+            <option key={name} value={name}>
+              {name} ({count})
+            </option>
+          ))}
+        </select>
+
+        {groupFilter !== '__all' && (
+          <button
+            onClick={() => setGroupFilterAndReset('__all')}
+            className="btn btn-ghost"
+            style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-3)' }}
+            title="Clear group filter"
+          >
+            ✕ Clear group
+          </button>
+        )}
+
         <Link
           href="/admin/subscribers/import"
           className="btn btn-ghost"
