@@ -247,7 +247,7 @@ export function PostEditor({
         />
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-3 sticky bottom-4 p-4 rounded-xl backdrop-blur-md" style={{ background: 'rgba(10,10,13,0.85)', border: '1px solid var(--line-2)' }}>
+      <div className="mt-2 flex flex-wrap gap-3 sticky bottom-4 p-4 rounded-xl backdrop-blur-md admin-sticky-savebar" style={{ background: 'rgba(10,10,13,0.85)', border: '1px solid var(--line-2)' }}>
         <button onClick={save} disabled={busy !== null} className="btn btn-primary">
           {busy === 'save' ? 'Saving…' : 'Save changes'}
         </button>

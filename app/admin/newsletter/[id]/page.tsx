@@ -132,7 +132,7 @@ export default async function SendDetailPage({ params }: { params: { id: string 
   const canResend = sendRow.kind === 'post' && sendRow.post_id && sendRow.posts;
 
   return (
-    <div style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ marginBottom: 16 }}>
         <Link href="/admin/newsletter" style={{ color: 'var(--text-2)', fontSize: 13, textDecoration: 'none' }}>
           ← Back to send log
@@ -192,7 +192,7 @@ export default async function SendDetailPage({ params }: { params: { id: string 
       {clicksRanked.length > 0 && (
         <div style={{ marginBottom: 32 }}>
           <h2 style={sectionH}>Top clicked links</h2>
-          <div style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+          <div className="admin-table-scroll" style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.03)', textAlign: 'left' }}>

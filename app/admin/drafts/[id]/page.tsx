@@ -32,7 +32,6 @@ async function loadConfirmedSubscribers(): Promise<SubRow[]> {
       .select('id, email, source, subscribed_at')
       .eq('status', 'confirmed')
       .order('subscribed_at', { ascending: false })
-      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
 
     const batch = (data as SubRow[]) || [];
@@ -54,7 +53,7 @@ export default async function DraftReviewPage({ params }: { params: { id: string
   const draft = draftRow.data;
   if (!draft) notFound();
   return (
-    <div style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
       <Link
         href="/admin/drafts"
         style={{

@@ -31,7 +31,6 @@ async function loadConfirmedSubscribers(): Promise<SubRow[]> {
       .select('id, email, source, subscribed_at')
       .eq('status', 'confirmed')
       .order('subscribed_at', { ascending: false })
-      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     const batch = (data as SubRow[]) || [];
     all = all.concat(batch);
@@ -51,7 +50,7 @@ export default async function EditPostPage({ params }: { params: { id: string } 
   const post = postRow.data;
   if (!post) notFound();
   return (
-    <div style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
       <Link
         href="/admin/posts"
         style={{

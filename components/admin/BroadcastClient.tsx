@@ -104,14 +104,8 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
       setActiveJobId(data.job_id);
       setMessage({
         kind: 'success',
-        text: `Send started for ${data.total_recipients.toLocaleString()} subscriber${data.total_recipients === 1 ? '' : 's'}. Watch progress at the top of the page.`,
+        text: `Send started for ${data.total_recipients.toLocaleString()} subscriber${data.total_recipients === 1 ? '' : 's'}. Progress shown below.`,
       });
-      // Scroll up so the progress widget is in view — without this, the user
-      // sees a "send started" banner at the bottom of a long form and has to
-      // hunt for the progress widget which renders at the top.
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
       setSubject('');
       setBody('');
       setAudience(defaultAudienceValue());
@@ -130,7 +124,7 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
   const formDisabled = sending !== 'none' || activeJobId !== null;
 
   return (
-    <div style={{ padding: 32, maxWidth: 920, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 920, margin: '0 auto' }}>
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Broadcast</h1>
       <p style={{ color: 'var(--text-2)', marginBottom: 32, lineHeight: 1.6 }}>
         Send an off-cycle email to a chosen set of subscribers. Use this for announcements, schedule changes,

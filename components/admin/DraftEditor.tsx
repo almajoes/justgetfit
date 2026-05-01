@@ -343,7 +343,7 @@ export function DraftEditor({
 
       {!isReadOnly && (
         <div
-          className="mt-10 flex flex-wrap items-center gap-3 sticky bottom-4 p-4 rounded-xl backdrop-blur-md"
+          className="mt-10 flex flex-wrap items-center gap-3 sticky bottom-4 p-4 rounded-xl backdrop-blur-md admin-sticky-savebar"
           style={{ background: 'rgba(10,10,13,0.85)', border: '1px solid var(--line-2)' }}
         >
           <button type="button" onClick={() => call('publish')} disabled={busy !== null} className="btn btn-primary">

@@ -215,7 +215,7 @@ export function SendEventsTable({ events }: { events: EventRow[] }) {
       </div>
 
       {/* Recipient table */}
-      <div style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+      <div className="admin-table-scroll" style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.03)', textAlign: 'left' }}>

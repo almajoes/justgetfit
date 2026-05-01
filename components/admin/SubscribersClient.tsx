@@ -206,13 +206,13 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Subscribers</h1>
       <p style={{ color: 'var(--text-2)', marginBottom: 32 }}>
         Newsletter subscribers. Confirmed users receive the weekly Monday article.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 32 }}>
         {[
           { label: 'Total', value: stats.total },
           { label: 'Confirmed', value: stats.confirmed, color: 'var(--neon)' },
@@ -375,7 +375,7 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
         </div>
       )}
 
-      <div style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+      <div className="admin-table-scroll" style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.03)', textAlign: 'left' }}>

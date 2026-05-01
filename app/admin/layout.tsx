@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AdminBottomTabs } from '@/components/admin/AdminBottomTabs';
 
 export const metadata = {
   title: 'Admin',
@@ -35,10 +36,26 @@ const SECTIONS: { heading: string; links: { href: string; label: string; icon: s
   },
 ];
 
+/**
+ * AdminLayout
+ *
+ * Desktop: 240px sticky sidebar + main content area (existing layout).
+ * Mobile (≤768px): sidebar hidden via CSS, fixed bottom tab bar replaces it,
+ * main content gets bottom padding so the bar doesn't cover its bottom.
+ *
+ * The bottom tab bar is a client component (`<AdminBottomTabs />`) — needs
+ * usePathname() for active highlighting + state for the More sheet. Sidebar
+ * stays as server-rendered markup so server pages hydrate without an extra
+ * client boundary.
+ *
+ * Pages should use className="admin-page-pad" on their outer wrapper so the
+ * mobile media query can shrink page padding from 32px → 16px.
+ */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-0)' }}>
       <aside
+        className="admin-sidebar"
         style={{
           width: 240,
           minHeight: '100vh',
@@ -131,7 +148,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </a>
         </nav>
       </aside>
-      <main style={{ flex: 1, minWidth: 0 }}>{children}</main>
+      <main className="admin-main" style={{ flex: 1, minWidth: 0 }}>{children}</main>
+      <AdminBottomTabs />
     </div>
   );
 }

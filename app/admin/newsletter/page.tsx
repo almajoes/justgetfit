@@ -20,8 +20,6 @@ type SendRow = {
   failed_count: number;
   opened_count: number;
   clicked_count: number;
-  bounced_count: number;
-  complained_count: number;
   status: string;
   notes: string | null;
   posts?: { title: string; slug: string; category: string | null } | null;
@@ -46,23 +44,11 @@ export default async function NewsletterAdminPage() {
   const totalRecipients = completedSends.reduce((sum, s) => sum + (s.recipient_count - s.failed_count), 0);
   const totalOpens = completedSends.reduce((sum, s) => sum + (s.opened_count || 0), 0);
   const totalClicks = completedSends.reduce((sum, s) => sum + (s.clicked_count || 0), 0);
-  const totalBounces = completedSends.reduce((sum, s) => sum + (s.bounced_count || 0), 0);
-  const totalComplaints = completedSends.reduce((sum, s) => sum + (s.complained_count || 0), 0);
   const avgOpenRate = pct(totalOpens, totalRecipients);
   const avgClickRate = pct(totalClicks, totalRecipients);
-  const avgBounceRate = pct(totalBounces, totalRecipients);
-  const avgComplaintRate = pct(totalComplaints, totalRecipients);
-
-  // Bounce/complaint rate health flags (rough industry guidelines for warm-up):
-  //   bounce  <2% = healthy, 2-5% = watch, >5% = problem (list hygiene)
-  //   complaint <0.1% = healthy, 0.1-0.3% = watch, >0.3% = problem (content / consent)
-  const bouncePct = totalRecipients > 0 ? (totalBounces / totalRecipients) * 100 : 0;
-  const complaintPct = totalRecipients > 0 ? (totalComplaints / totalRecipients) * 100 : 0;
-  const bounceAccent = bouncePct >= 5 ? '#ff6b6b' : bouncePct >= 2 ? '#ff9b6b' : 'var(--text)';
-  const complaintAccent = complaintPct >= 0.3 ? '#ff6b6b' : complaintPct >= 0.1 ? '#ff9b6b' : 'var(--text)';
 
   return (
-    <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Send log</h1>
       <p style={{ color: 'var(--text-2)', marginBottom: 32 }}>
         Every email blast — both <strong>post</strong> sends (auto-triggered when you publish an article) and <strong>broadcast</strong> messages (custom emails sent from <Link href="/admin/broadcast" style={{ color: 'var(--neon)' }}>the broadcast composer</Link>).
@@ -82,12 +68,10 @@ export default async function NewsletterAdminPage() {
           <SummaryCard label="Total recipients" value={totalRecipients.toLocaleString()} />
           <SummaryCard label="Avg. open rate" value={avgOpenRate} accent="var(--neon)" />
           <SummaryCard label="Avg. click rate" value={avgClickRate} accent="var(--neon)" />
-          <SummaryCard label="Bounce rate" value={avgBounceRate} accent={bounceAccent} />
-          <SummaryCard label="Complaint rate" value={avgComplaintRate} accent={complaintAccent} />
         </div>
       )}
 
-      <div style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+      <div className="admin-table-scroll" style={{ background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 12 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'rgba(255,255,255,0.03)', textAlign: 'left' }}>
@@ -96,8 +80,6 @@ export default async function NewsletterAdminPage() {
               <th style={th}>Subject / Article</th>
               <th style={th}>Recipients</th>
               <th style={th}>Failed</th>
-              <th style={th}>Bounced</th>
-              <th style={th}>Complaints</th>
               <th style={th}>Opens</th>
               <th style={th}>Clicks</th>
               <th style={th}>Status</th>
@@ -140,18 +122,6 @@ export default async function NewsletterAdminPage() {
                   <td style={{ ...td, fontWeight: 600 }}>{s.recipient_count}</td>
                   <td style={{ ...td, color: s.failed_count > 0 ? '#ff6b6b' : 'var(--text-3)' }}>
                     {s.failed_count}
-                  </td>
-                  <td style={td}>
-                    <div style={{ fontWeight: 600, color: (s.bounced_count || 0) > 0 ? '#ff9b6b' : 'var(--text-3)' }}>
-                      {s.bounced_count || 0}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{pct(s.bounced_count || 0, delivered)}</div>
-                  </td>
-                  <td style={td}>
-                    <div style={{ fontWeight: 600, color: (s.complained_count || 0) > 0 ? '#ff6b6b' : 'var(--text-3)' }}>
-                      {s.complained_count || 0}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{pct(s.complained_count || 0, delivered)}</div>
                   </td>
                   <td style={td}>
                     <div style={{ fontWeight: 600 }}>{s.opened_count || 0}</div>

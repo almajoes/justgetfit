@@ -822,3 +822,158 @@ select option {
 @media (max-width: 700px) {
   .cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   Admin mobile responsive (≤768px)
+   Wave 1: bottom tab bar, hidden sidebar, reduced page padding, table swipe
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* Tab bar — hidden on desktop, fixed bottom on mobile */
+.admin-bottom-tabs { display: none; }
+.admin-bottom-tab { display: none; }
+
+@media (max-width: 768px) {
+  /* Hide the desktop sidebar */
+  .admin-sidebar { display: none !important; }
+  /* Add bottom padding to main content so the fixed tab bar doesn't cover the bottom of the page */
+  .admin-main { padding-bottom: 80px !important; }
+
+  /* Show + style the bottom tab bar */
+  .admin-bottom-tabs {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: rgba(10, 10, 13, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--line);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); /* iOS home indicator safe area */
+  }
+  .admin-bottom-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 2px;
+    border: none;
+    background: transparent;
+    color: var(--text-3);
+    text-decoration: none;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: color 100ms;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .admin-bottom-tab[data-active='true'] {
+    color: var(--neon);
+  }
+  .admin-bottom-tab__icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+  .admin-bottom-tab__label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* Reduce page padding on admin pages */
+  .admin-page-pad { padding: 16px !important; }
+  /* Smaller h1 sizes on mobile */
+  .admin-page-pad h1 { font-size: 22px !important; }
+
+  /* Tables: enable horizontal swipe and prevent body width blow-up */
+  .admin-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+  }
+  .admin-table-scroll table { min-width: 720px; }
+
+  /* Sticky save bars stay sticky but get nudged above the tab bar */
+  .admin-sticky-savebar { bottom: 80px !important; }
+
+  /* Editor side-by-side panels stack on mobile */
+  .admin-editor-grid { grid-template-columns: 1fr !important; }
+
+  /* Filter pill rows wrap & shrink cleanly */
+  .admin-filter-row {
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+}
+
+/* More-sheet portal (always visible — controlled by component mount) */
+.admin-more-sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.admin-more-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: admin-more-fade-in 150ms ease-out;
+}
+.admin-more-sheet-panel {
+  position: relative;
+  background: var(--bg-1);
+  border-top: 1px solid var(--line);
+  border-radius: 20px 20px 0 0;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: admin-more-slide-up 220ms ease-out;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.admin-more-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--line);
+  border-radius: 2px;
+  margin: 10px auto 4px;
+}
+.admin-more-sheet-content {
+  padding: 12px 16px 24px;
+}
+.admin-more-sheet-heading {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0 12px 8px;
+}
+.admin-more-sheet-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  color: var(--text-2);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.admin-more-sheet-link[data-active='true'] {
+  background: rgba(196, 255, 61, 0.08);
+  color: var(--neon);
+}
+
+@keyframes admin-more-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes admin-more-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}

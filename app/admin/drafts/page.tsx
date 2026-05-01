@@ -28,7 +28,7 @@ export default async function AdminDraftsPage() {
   const { drafts, unusedTopicCount, error } = await getData();
   if (error) {
     return (
-      <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+      <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>Drafts</h1>
         <div style={{ padding: 16, background: 'rgba(255,107,107,0.1)', border: '1px solid #ff6b6b', borderRadius: 12, color: '#ff6b6b' }}>
           <strong>Database error:</strong> {error}

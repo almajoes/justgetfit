@@ -28,7 +28,6 @@ export default async function SubscribersAdminPage() {
         'id, email, status, source, confirmation_token, unsubscribe_token, subscribed_at, confirmed_at, unsubscribed_at, last_sent_at'
       )
       .order('subscribed_at', { ascending: false })
-      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
 
     if (error) {
@@ -50,7 +49,7 @@ export default async function SubscribersAdminPage() {
   if (lastError) {
     console.error('[admin/subscribers] Query failed:', lastError);
     return (
-      <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+      <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>Subscribers</h1>
         <div
           style={{

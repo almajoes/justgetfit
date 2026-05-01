@@ -34,7 +34,7 @@ export function DraftsClient({
   const handled = drafts.filter((d) => d.status !== 'pending');
 
   return (
-    <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
         <div>
           <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--neon)' }}>

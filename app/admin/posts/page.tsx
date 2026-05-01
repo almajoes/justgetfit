@@ -16,7 +16,7 @@ export default async function AdminPostsPage() {
   if (error) {
     console.error('[admin/posts] Query failed:', error);
     return (
-      <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+      <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>Published posts</h1>
         <div style={{ padding: 16, background: 'rgba(255,107,107,0.1)', border: '1px solid #ff6b6b', borderRadius: 12, color: '#ff6b6b' }}>
           <strong>Database error:</strong> {error.message}
@@ -29,7 +29,7 @@ export default async function AdminPostsPage() {
   const posts = (data ?? []) as Post[];
 
   return (
-    <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
       <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--neon)' }}>Admin</p>
       <h1 className="text-4xl md:text-5xl font-bold mb-2" style={{ letterSpacing: '-0.02em' }}>Published posts</h1>
       <p className="mb-8" style={{ color: 'var(--text-2)' }}>{posts.length} posts</p>
