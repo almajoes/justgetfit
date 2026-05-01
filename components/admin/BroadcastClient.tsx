@@ -26,6 +26,10 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
   // Random sample mode: how many to pick + which pool to sample from
   const [randomCount, setRandomCount] = useState<number>(1000);
   const [randomFromGroups, setRandomFromGroups] = useState<Set<string>>(new Set()); // empty = sample from ALL
+  // Groups whose members get included in full (no sampling), unioned with the random sample.
+  // Lets you do "1000 random from `import` + everyone in `subscribe-page`" in one send.
+  // A group cannot be in both sets — the UI disables the other side when one is ticked.
+  const [randomFullGroups, setRandomFullGroups] = useState<Set<string>>(new Set());
   // Stable seed so the recipient count doesn't change every render.
   // Re-rolling the sample is a deliberate user action via the "Re-shuffle" button.
   const [randomSeed, setRandomSeed] = useState<number>(() => Math.floor(Math.random() * 1e9));
@@ -51,15 +55,23 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
       return subscribers.filter((s) => selectedSources.has(s.source || '(none)'));
     }
     if (mode === 'random') {
-      // Pool: either the specified groups or everyone if no groups specified
-      const pool =
+      // The sample pool: subscribers in the "sample from" groups (or everyone if none selected).
+      // Subscribers in "always include" groups are excluded from the sample pool — they're
+      // added in full afterward, so we shouldn't double-count them when picking N.
+      const samplePool =
         randomFromGroups.size > 0
-          ? subscribers.filter((s) => randomFromGroups.has(s.source || '(none)'))
-          : subscribers;
-      const n = Math.min(Math.max(0, Math.floor(randomCount)), pool.length);
+          ? subscribers.filter(
+              (s) =>
+                randomFromGroups.has(s.source || '(none)') &&
+                !randomFullGroups.has(s.source || '(none)')
+            )
+          : subscribers.filter((s) => !randomFullGroups.has(s.source || '(none)'));
+
+      const n = Math.min(Math.max(0, Math.floor(randomCount)), samplePool.length);
+
       // Seeded Fisher-Yates: deterministic given (pool, seed) so the count is stable.
       // Mulberry32 is small and good enough for picking emails.
-      const arr = pool.slice();
+      const arr = samplePool.slice();
       let seed = randomSeed >>> 0;
       const rand = () => {
         seed = (seed + 0x6d2b79f5) >>> 0;
@@ -72,23 +84,67 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
         const j = Math.floor(rand() * (i + 1));
         [arr[i], arr[j]] = [arr[j], arr[i]];
       }
-      return arr.slice(0, n);
+      const sampled = arr.slice(0, n);
+
+      // Always-include: everyone in the full-include groups.
+      const fullIncluded =
+        randomFullGroups.size > 0
+          ? subscribers.filter((s) => randomFullGroups.has(s.source || '(none)'))
+          : [];
+
+      // Union, dedup by id. (samplePool already excludes full-include groups, so dedup is
+      // technically a belt-and-suspenders here, but cheap and protects against future edits.)
+      const seen = new Set<string>();
+      const out: Subscriber[] = [];
+      for (const s of sampled) {
+        if (!seen.has(s.id)) {
+          seen.add(s.id);
+          out.push(s);
+        }
+      }
+      for (const s of fullIncluded) {
+        if (!seen.has(s.id)) {
+          seen.add(s.id);
+          out.push(s);
+        }
+      }
+      return out;
     }
     // mode === 'pick'
     return subscribers.filter((s) => selectedIds.has(s.id));
-  }, [mode, subscribers, selectedSources, selectedIds, randomCount, randomFromGroups, randomSeed]);
+  }, [mode, subscribers, selectedSources, selectedIds, randomCount, randomFromGroups, randomFullGroups, randomSeed]);
 
   const recipientCount = recipients.length;
   const canSend = subject.trim().length > 0 && body.trim().length > 0 && sending === 'none';
 
-  // Pool size for the random-mode UI display
+  // Pool size for the random-mode UI display.
+  // This is the SAMPLE pool size only (excludes full-include groups, since those subs
+  // are added in full afterward and shouldn't count toward the "N to pick from" max).
   const randomPoolSize = useMemo(() => {
-    if (randomFromGroups.size === 0) return subscribers.length;
-    return subscribers.filter((s) => randomFromGroups.has(s.source || '(none)')).length;
-  }, [subscribers, randomFromGroups]);
+    const base =
+      randomFromGroups.size > 0
+        ? subscribers.filter((s) => randomFromGroups.has(s.source || '(none)'))
+        : subscribers;
+    return base.filter((s) => !randomFullGroups.has(s.source || '(none)')).length;
+  }, [subscribers, randomFromGroups, randomFullGroups]);
+
+  // Total subscribers across all "always include" groups.
+  const randomFullSize = useMemo(() => {
+    if (randomFullGroups.size === 0) return 0;
+    return subscribers.filter((s) => randomFullGroups.has(s.source || '(none)')).length;
+  }, [subscribers, randomFullGroups]);
 
   function toggleRandomGroup(g: string) {
     setRandomFromGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(g)) next.delete(g);
+      else next.add(g);
+      return next;
+    });
+  }
+
+  function toggleRandomFullGroup(g: string) {
+    setRandomFullGroups((prev) => {
       const next = new Set(prev);
       if (next.has(g)) next.delete(g);
       else next.add(g);
@@ -213,6 +269,7 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
       setSelectedSources(new Set());
       setSelectedIds(new Set());
       setRandomFromGroups(new Set());
+      setRandomFullGroups(new Set());
     } catch (err) {
       setMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Broadcast failed' });
     } finally {
@@ -400,24 +457,33 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
         {mode === 'random' && (
           <div>
             <p style={muted}>
-              Pick a random subset of subscribers. Useful for warming up domain reputation by sending to small batches before blasting the full list, or A/B testing subject lines.
+              Pick a random subset of subscribers, optionally combined with full groups you want to include
+              entirely. Useful for warming up domain reputation, A/B testing subject lines, or sending to
+              one engaged segment in full plus a sample of a larger list.
             </p>
 
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 12, marginBottom: 16 }}>
               <div>
-                <label className="label">How many to pick</label>
+                <label className="label">How many to pick (random)</label>
                 <input
                   type="number"
                   min={1}
-                  max={randomPoolSize}
+                  max={Math.max(1, randomPoolSize)}
                   value={randomCount}
                   onChange={(e) => setRandomCount(Math.max(1, parseInt(e.target.value, 10) || 0))}
                   className="input"
                   style={{ width: 140 }}
+                  disabled={randomPoolSize === 0}
                 />
                 <p style={{ ...muted, marginTop: 4 }}>
-                  Pool size: <strong style={{ color: 'var(--text-2)' }}>{randomPoolSize}</strong>
-                  {randomFromGroups.size > 0 && ' (filtered by selected groups)'}
+                  Sample pool: <strong style={{ color: 'var(--text-2)' }}>{randomPoolSize.toLocaleString()}</strong>
+                  {randomFullSize > 0 && (
+                    <>
+                      {' '}· always-include:{' '}
+                      <strong style={{ color: 'var(--text-2)' }}>{randomFullSize.toLocaleString()}</strong>
+                    </>
+                  )}
+                  {(randomFromGroups.size > 0 || randomFullGroups.size > 0) && ' (filtered by selected groups)'}
                 </p>
               </div>
               <button
@@ -430,9 +496,10 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
               </button>
             </div>
 
+            {/* SAMPLE-FROM GROUPS */}
             <div style={{ marginTop: 8 }}>
               <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8 }}>
-                Sample from these groups (leave empty to sample from <strong>all</strong> confirmed subscribers):
+                <strong style={{ color: 'var(--text-2)' }}>Sample from these groups</strong> (leave empty to sample from <strong>all</strong> confirmed subscribers):
               </div>
               <div
                 style={{
@@ -443,9 +510,11 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
               >
                 {sources.map(([src, count]) => {
                   const checked = randomFromGroups.has(src);
+                  const lockedByFull = randomFullGroups.has(src);
                   return (
                     <label
                       key={src}
+                      title={lockedByFull ? 'This group is set to "always include" — uncheck it there to sample from it instead.' : undefined}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -454,23 +523,103 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
                         borderRadius: 8,
                         border: `1px solid ${checked ? 'var(--neon)' : 'var(--line)'}`,
                         background: checked ? 'rgba(196,255,61,0.06)' : 'transparent',
-                        cursor: 'pointer',
+                        cursor: lockedByFull ? 'not-allowed' : 'pointer',
                         fontSize: 13,
+                        opacity: lockedByFull ? 0.4 : 1,
                       }}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
+                        disabled={lockedByFull}
                         onChange={() => toggleRandomGroup(src)}
                         style={{ accentColor: 'var(--neon)' }}
                       />
                       <span style={{ flex: 1, fontFamily: 'monospace' }}>{src}</span>
-                      <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{count}</span>
+                      <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{count.toLocaleString()}</span>
                     </label>
                   );
                 })}
               </div>
             </div>
+
+            {/* ALWAYS-INCLUDE GROUPS */}
+            <div style={{ marginTop: 20 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8 }}>
+                <strong style={{ color: 'var(--text-2)' }}>Always include everyone in these groups</strong> (added in full on top of the random sample, deduped):
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                  gap: 8,
+                }}
+              >
+                {sources.map(([src, count]) => {
+                  const checked = randomFullGroups.has(src);
+                  const lockedBySample = randomFromGroups.has(src);
+                  return (
+                    <label
+                      key={src}
+                      title={lockedBySample ? 'This group is in the sample pool — uncheck it there to include it in full instead.' : undefined}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: `1px solid ${checked ? 'var(--neon)' : 'var(--line)'}`,
+                        background: checked ? 'rgba(196,255,61,0.06)' : 'transparent',
+                        cursor: lockedBySample ? 'not-allowed' : 'pointer',
+                        fontSize: 13,
+                        opacity: lockedBySample ? 0.4 : 1,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={lockedBySample}
+                        onChange={() => toggleRandomFullGroup(src)}
+                        style={{ accentColor: 'var(--neon)' }}
+                      />
+                      <span style={{ flex: 1, fontFamily: 'monospace' }}>{src}</span>
+                      <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{count.toLocaleString()}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* RECIPIENT BREAKDOWN */}
+            {(randomFullSize > 0 || randomCount > 0) && (
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: '12px 14px',
+                  borderRadius: 8,
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid var(--line)',
+                  fontSize: 12,
+                  color: 'var(--text-2)',
+                  lineHeight: 1.6,
+                }}
+              >
+                Final recipients:{' '}
+                <strong style={{ color: 'var(--neon)' }}>{recipientCount.toLocaleString()}</strong>
+                {' '}={' '}
+                <strong>{Math.min(randomCount, randomPoolSize).toLocaleString()}</strong> random
+                {randomFullSize > 0 && (
+                  <>
+                    {' '}+ <strong>{randomFullSize.toLocaleString()}</strong> always-included
+                  </>
+                )}
+                {recipientCount > 5000 && (
+                  <span style={{ color: '#ff9b6b', display: 'block', marginTop: 4 }}>
+                    ⚠ Over the 5,000 per-broadcast limit. Reduce the count or remove an always-included group.
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -519,11 +668,16 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
             <span style={{ color: '#ff9b6b' }}>
               No recipients selected — choose &ldquo;All confirmed&rdquo; or pick at least one subscriber/source.
             </span>
+          ) : recipientCount > 5000 && mode !== 'all' ? (
+            <span style={{ color: '#ff9b6b' }}>
+              {recipientCount.toLocaleString()} recipients exceeds the 5,000 per-broadcast limit. Reduce the count
+              or remove a group to continue.
+            </span>
           ) : (
             <>
               Will send to{' '}
               <strong style={{ color: 'var(--neon)' }}>
-                {recipientCount} subscriber{recipientCount === 1 ? '' : 's'}
+                {recipientCount.toLocaleString()} subscriber{recipientCount === 1 ? '' : 's'}
               </strong>
               . Each gets a unique unsubscribe link. The send is logged in the Newsletter log with open/click
               tracking.
@@ -532,13 +686,18 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
         </p>
         <button
           onClick={sendBroadcast}
-          disabled={!canSend || recipientCount === 0 || sending !== 'none'}
+          disabled={
+            !canSend ||
+            recipientCount === 0 ||
+            sending !== 'none' ||
+            (mode !== 'all' && recipientCount > 5000)
+          }
           className="btn btn-primary"
           style={{ padding: '12px 24px', fontSize: 14 }}
         >
           {sending === 'broadcast'
-            ? `Sending to ${recipientCount}…`
-            : `Send to ${recipientCount} subscriber${recipientCount === 1 ? '' : 's'} →`}
+            ? `Sending to ${recipientCount.toLocaleString()}…`
+            : `Send to ${recipientCount.toLocaleString()} subscriber${recipientCount === 1 ? '' : 's'} →`}
         </button>
       </div>
 
