@@ -232,7 +232,7 @@ export async function triggerWorker(jobId: string): Promise<void> {
     return;
   }
 
-  const url = `${baseUrl}/api/_internal/jobs/process`;
+  const url = `${baseUrl}/api/internal/jobs/process`;
 
   // Build the fetch promise. We attach a .catch so unhandled rejections don't
   // crash the runtime if the worker is unreachable. We do NOT await it here —

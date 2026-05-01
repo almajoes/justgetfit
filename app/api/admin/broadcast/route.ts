@@ -12,7 +12,7 @@ export const maxDuration = 30;
  *
  * Enqueues a broadcast email job and returns immediately. The actual sending
  * happens in the background via the chunked-worker system (see lib/email-jobs.ts
- * and app/api/_internal/jobs/process/route.ts).
+ * and app/api/internal/jobs/process/route.ts).
  *
  * No 5,000-recipient cap — the worker chunks the queue and self-triggers
  * until done. Progress is exposed via /api/admin/jobs/<id>/status, which the
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
 
   // ─── Kick the worker ──────────────────────────────────────────────
   // triggerWorker uses Vercel's waitUntil() so the fire-and-forget POST
-  // to /api/_internal/jobs/process survives past our response return.
+  // to /api/internal/jobs/process survives past our response return.
   await triggerWorker(jobResult.job.id);
 
   return NextResponse.json({
