@@ -183,7 +183,7 @@ export function ImportSubscribersClient() {
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 880, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 880, margin: '0 auto' }}>
       <div style={{ marginBottom: 24 }}>
         <Link href="/admin/subscribers" style={{ color: 'var(--text-2)', fontSize: 13, textDecoration: 'none' }}>
           ← Back to subscribers

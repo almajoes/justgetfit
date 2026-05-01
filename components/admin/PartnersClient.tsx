@@ -75,7 +75,7 @@ export function PartnersClient({ initialPartners }: { initialPartners: Partner[]
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>Partners</h1>
         <button onClick={addItem} className="btn btn-primary" style={{ padding: '10px 22px', fontSize: 13 }}>+ Add partner</button>
@@ -118,7 +118,7 @@ export function PartnersClient({ initialPartners }: { initialPartners: Partner[]
                     <div style={{ fontSize: 12, color: 'var(--text-3)' }}>{p.url}</div>
                   </>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     <input className="input" placeholder="Name" value={p.name} onChange={(e) => update(p.id, { name: e.target.value })} />
                     <input className="input" placeholder="Tag (e.g. Recommended Reading)" value={p.tag || ''} onChange={(e) => update(p.id, { tag: e.target.value })} />
                     <input className="input" placeholder="URL" value={p.url} onChange={(e) => update(p.id, { url: e.target.value })} />

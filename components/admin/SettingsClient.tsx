@@ -23,7 +23,7 @@ export function SettingsClient({ site, footer }: { site: SiteSettings; footer: F
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 800, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 800, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>Site settings</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>

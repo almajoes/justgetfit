@@ -977,3 +977,24 @@ select option {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   Admin mobile responsive WAVE 2 — utility grid classes
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* Generic admin form grids — desktop preserves N columns, mobile stacks to 1 */
+@media (max-width: 768px) {
+  .admin-grid-2,
+  .admin-grid-3,
+  .admin-grid-3col {
+    grid-template-columns: 1fr !important;
+  }
+  /* Multi-column "row" layouts (label + value + actions) on Navigation, etc.
+     stack to a more sensible 2-column (label/value) + button-row underneath */
+  .admin-grid-rowstack {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  /* Reduce h2 sizes a bit on mobile too */
+  .admin-page-pad h2 { font-size: 18px !important; }
+}

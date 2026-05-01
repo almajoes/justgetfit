@@ -80,7 +80,7 @@ export function GenerateClient({ unusedTopicCount }: { unusedTopicCount: number 
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 880, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 880, margin: '0 auto' }}>
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>
         Generate articles
       </h1>

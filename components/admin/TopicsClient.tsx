@@ -127,7 +127,7 @@ export function TopicsClient({ topics }: { topics: Topic[] }) {
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
         <div>
           <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--neon)' }}>Admin</p>
@@ -205,7 +205,7 @@ export function TopicsClient({ topics }: { topics: Topic[] }) {
               {editingId === t.id ? (
                 <div className="space-y-3">
                   <input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="input" />
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <input value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="input" placeholder="Category" />
                     <input value={editForm.angle} onChange={(e) => setEditForm({ ...editForm, angle: e.target.value })} className="input" placeholder="Angle" />
                   </div>

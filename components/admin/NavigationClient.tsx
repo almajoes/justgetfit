@@ -86,7 +86,7 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Navigation</h1>
       <p style={{ color: 'var(--text-2)', marginBottom: 32 }}>
         Edit menu items in the top nav and footer. Changes go live within ~60 seconds.
@@ -109,6 +109,7 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
             {groups[section.key].map((it, idx) => (
               <div
                 key={it.id}
+                className="admin-grid-rowstack"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 1.5fr auto auto auto auto',

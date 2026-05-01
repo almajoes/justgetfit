@@ -68,7 +68,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
   };
 
   return (
-    <div style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>
@@ -102,7 +102,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
           />
         </Field>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div className="admin-grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
           <Field label="Headline (part 1)">
             <input className="input" value={content.headline_part1 || ''} onChange={(e) => update(['headline_part1'], e.target.value)} />
           </Field>
@@ -135,7 +135,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
               onRemove={(i) => removeItem('stats', i)}
               onMove={(i, d) => moveItem('stats', i, d)}
               renderItem={(item, i) => (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 2fr', gap: 8 }}>
+                <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '1fr 80px 2fr', gap: 8 }}>
                   <input className="input" placeholder="Number" value={item.num || ''} onChange={(e) => update(['stats', i, 'num'], e.target.value)} />
                   <input className="input" placeholder="+/%" value={item.suffix || ''} onChange={(e) => update(['stats', i, 'suffix'], e.target.value)} />
                   <input className="input" placeholder="Label" value={item.label || ''} onChange={(e) => update(['stats', i, 'label'], e.target.value)} />
@@ -164,7 +164,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
               onRemove={(i) => removeItem('pillars', i)}
               onMove={(i, d) => moveItem('pillars', i, d)}
               renderItem={(item, i) => (
-                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 8 }}>
+                <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 8 }}>
                   <input className="input" placeholder="01" value={item.num || ''} onChange={(e) => update(['pillars', i, 'num'], e.target.value)} />
                   <input className="input" placeholder="Pillar title" value={item.title || ''} onChange={(e) => update(['pillars', i, 'title'], e.target.value)} />
                   <div />
@@ -182,7 +182,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
             <Field label="Lede paragraph">
               <textarea className="input" rows={3} value={content.lede || ''} onChange={(e) => update(['lede'], e.target.value)} />
             </Field>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Field label="Form placeholder">
                 <input className="input" value={content.form_placeholder || ''} onChange={(e) => update(['form_placeholder'], e.target.value)} />
               </Field>
@@ -200,7 +200,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
               onRemove={(i) => removeItem('promises', i)}
               onMove={(i, d) => moveItem('promises', i, d)}
               renderItem={(item, i) => (
-                <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
+                <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
                   <input className="input" placeholder="🎯" value={item.icon || ''} onChange={(e) => update(['promises', i, 'icon'], e.target.value)} />
                   <input className="input" placeholder="Title" value={item.title || ''} onChange={(e) => update(['promises', i, 'title'], e.target.value)} />
                   <div />
@@ -234,7 +234,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
               <textarea className="input" rows={3} value={content.intro || ''} onChange={(e) => update(['intro'], e.target.value)} />
             </Field>
             <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Form labels</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Field label="Name label"><input className="input" value={content.labels?.name || ''} onChange={(e) => update(['labels', 'name'], e.target.value)} /></Field>
               <Field label="Email label"><input className="input" value={content.labels?.email || ''} onChange={(e) => update(['labels', 'email'], e.target.value)} /></Field>
               <Field label="Subject label"><input className="input" value={content.labels?.subject || ''} onChange={(e) => update(['labels', 'subject'], e.target.value)} /></Field>
@@ -244,7 +244,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
               <input className="input" value={content.labels?.submit || ''} onChange={(e) => update(['labels', 'submit'], e.target.value)} />
             </Field>
             <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Form placeholders</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Field label="Name placeholder"><input className="input" value={content.placeholders?.name || ''} onChange={(e) => update(['placeholders', 'name'], e.target.value)} /></Field>
               <Field label="Email placeholder"><input className="input" value={content.placeholders?.email || ''} onChange={(e) => update(['placeholders', 'email'], e.target.value)} /></Field>
               <Field label="Subject placeholder"><input className="input" value={content.placeholders?.subject || ''} onChange={(e) => update(['placeholders', 'subject'], e.target.value)} /></Field>
@@ -271,7 +271,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function CTAFields({ content, onChange }: { content: AnyContent; onChange: (path: any[], value: any) => void }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
       <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>
         <div style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Primary CTA</div>
         <input className="input" placeholder="Label" value={content.cta_primary?.label || ''} onChange={(e) => onChange(['cta_primary', 'label'], e.target.value)} style={{ marginBottom: 8 }} />

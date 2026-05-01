@@ -43,7 +43,7 @@ export function SiteCodeEditor({ initial }: { initial: SiteCode }) {
   }
 
   return (
-    <div style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 960, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
         <div>
           <p className="text-xs uppercase tracking-widest" style={{ color: 'var(--neon)', marginBottom: 6 }}>Admin · CMS</p>

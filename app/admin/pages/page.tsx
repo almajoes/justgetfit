@@ -11,7 +11,7 @@ const PAGES = [
 
 export default function PagesIndex() {
   return (
-    <div style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1080, margin: '0 auto' }}>
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Pages</h1>
       <p style={{ color: 'var(--text-2)', marginBottom: 32 }}>
         Edit static page content. Changes are live within ~60 seconds.
