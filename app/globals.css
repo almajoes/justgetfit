@@ -998,3 +998,32 @@ select option {
   /* Reduce h2 sizes a bit on mobile too */
   .admin-page-pad h2 { font-size: 18px !important; }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   Send-detail page: 7-card stat row (force single line on desktop)
+   ──────────────────────────────────────────────────────────────────────── */
+.admin-stat-row > div {
+  /* Allow card content to shrink below its natural width */
+  min-width: 0;
+}
+.admin-stat-row > div > div:first-child {
+  /* Label — slightly smaller so it doesn't wrap on narrow cards */
+  font-size: 10px !important;
+}
+.admin-stat-row > div > div:last-child {
+  /* Value — tighter font + don't break inside */
+  font-size: 16px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 768px) {
+  /* Mobile: collapse 7-col grid to 2 columns so cards don't get unreadably tiny */
+  .admin-stat-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .admin-stat-row > div > div:last-child {
+    font-size: 18px !important;
+    white-space: normal;
+  }
+}
