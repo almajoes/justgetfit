@@ -497,3 +497,82 @@ ${siteUrl}`;
     return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
+
+/**
+ * Send the site owner a notification when a new subscriber CONFIRMS their
+ * subscription (clicks the verification link from the confirmation email).
+ *
+ * Wired into /api/subscribe/confirm. Fires fire-and-forget so the user's
+ * confirm-link redirect doesn't wait for Resend's API.
+ *
+ * Only fires for organic public-form signups. Admin imports and admin manual
+ * adds skip the confirmation flow entirely (they're inserted directly as
+ * confirmed) so they never hit this code path. Same for re-confirmations of
+ * existing-already-confirmed subscribers — handled by the early-return in
+ * the confirm route.
+ */
+export async function sendNewSubscriberNotification(opts: {
+  toEmail: string;
+  subscriberEmail: string;
+  source: string | null;
+  totalConfirmed: number;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (!resend) return { ok: false, error: 'RESEND_API_KEY not configured' };
+
+  const innerHtml = `
+    <div style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:${BRAND.bgDark};background:${BRAND.neon};padding:4px 10px;border-radius:4px;margin:0 0 16px;">
+      New subscriber
+    </div>
+    <h1 style="font-size:28px;font-weight:800;line-height:1.2;letter-spacing:-0.02em;margin:0 0 24px;color:${BRAND.bgDark};">
+      ${escapeHtml(opts.subscriberEmail)} just confirmed.
+    </h1>
+    <p style="font-size:16px;line-height:1.6;color:${BRAND.text};margin:0 0 24px;">
+      You now have <strong>${opts.totalConfirmed.toLocaleString()}</strong> confirmed subscriber${opts.totalConfirmed === 1 ? '' : 's'}.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 24px;">
+      <tr>
+        <td style="padding:8px 0;font-size:13px;color:${BRAND.textMuted};font-weight:600;letter-spacing:0.05em;text-transform:uppercase;width:80px;">Email</td>
+        <td style="padding:8px 0;font-size:15px;color:${BRAND.text};font-family:'SF Mono',Menlo,Consolas,monospace;">${escapeHtml(opts.subscriberEmail)}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;font-size:13px;color:${BRAND.textMuted};font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Source</td>
+        <td style="padding:8px 0;font-size:15px;color:${BRAND.text};">${escapeHtml(opts.source || '(unknown)')}</td>
+      </tr>
+    </table>
+    <p style="margin:32px 0 0;">
+      <a href="${siteUrl}/admin/subscribers" style="display:inline-block;background:${BRAND.bgDark};color:${BRAND.neon};padding:14px 28px;border-radius:100px;font-weight:700;text-decoration:none;font-size:14px;">
+        View subscribers &rarr;
+      </a>
+    </p>
+  `;
+
+  const html = brandedShell({
+    preheader: `${opts.subscriberEmail} just confirmed — total: ${opts.totalConfirmed.toLocaleString()}`,
+    innerHtml,
+    showFooterNav: false,
+  });
+
+  const text = `JUST GET FIT — New subscriber confirmed
+
+${opts.subscriberEmail} just confirmed their subscription.
+
+You now have ${opts.totalConfirmed.toLocaleString()} confirmed subscriber${opts.totalConfirmed === 1 ? '' : 's'}.
+
+Source: ${opts.source || '(unknown)'}
+
+View all subscribers: ${siteUrl}/admin/subscribers
+`;
+
+  try {
+    await resend.emails.send({
+      from: fromEmail,
+      to: opts.toEmail,
+      subject: `[New sub] ${opts.subscriberEmail}`,
+      html,
+      text,
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
