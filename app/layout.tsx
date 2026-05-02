@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { getSiteSettings, getSiteCode } from '@/lib/cms';
+import { AnalyticsBeacon } from '@/components/AnalyticsBeacon';
+import { CookieBanner } from '@/components/CookieBanner';
+import { Suspense } from 'react';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
 
@@ -188,6 +191,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             suppressHydrationWarning
           />
         )}
+
+        {/* Analytics beacon — fires a pageview on every navigation. Wrapped in
+            Suspense because useSearchParams() suspends during static generation
+            of any page that doesn't itself opt into dynamic rendering. */}
+        <Suspense fallback={null}>
+          <AnalyticsBeacon />
+        </Suspense>
+
+        {/* Cookie consent banner — shows only on first visit until a choice
+            is made. Doesn't block tracking either way; just toggles between
+            cookie-based and fingerprint-based visitor identification. */}
+        <CookieBanner />
       </body>
     </html>
   );
