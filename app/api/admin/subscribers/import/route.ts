@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { generateToken } from '@/lib/tokens';
+import { markViewed } from '@/lib/admin-counts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -106,6 +107,13 @@ export async function POST(req: NextRequest) {
   // OR landed in a failed batch. We don't try to distinguish — duplicates are
   // expected, batch failures are reported via the errors array.
   const alreadyExisted = cleaned.length - inserted - errors.length * 500;
+
+  // Bump the subscribers last-viewed timestamp so the sidebar counter doesn't
+  // fire for these admin-imported rows. The counter is meant to alert on
+  // organic public-form signups; admin imports are intentional bulk operations
+  // the user already knows about. Without this, every import would spike the
+  // counter to the import size (e.g. importing 1000 → counter shows 1000).
+  await markViewed('subscribers');
 
   return NextResponse.json({
     inserted,
