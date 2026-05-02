@@ -43,9 +43,9 @@ export async function SiteFooter() {
         <div className="footer-bottom">
           <span>{footer.copyright}</span>
           <span className="footer-legal-links" style={{ display: 'inline-flex', gap: 12, alignItems: 'center' }}>
-            <Link href="/privacy" style={{ color: 'inherit' }}>Privacy</Link>
+            <Link href="/privacy" style={{ color: 'inherit' }}>Privacy Policy</Link>
             <span aria-hidden style={{ opacity: 0.4 }}>·</span>
-            <Link href="/terms" style={{ color: 'inherit' }}>Terms</Link>
+            <Link href="/terms" style={{ color: 'inherit' }}>Terms of Use</Link>
           </span>
           <span>{footer.version_label}</span>
         </div>

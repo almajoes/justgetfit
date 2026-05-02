@@ -4,7 +4,7 @@ import { SiteFooter } from '@/components/SiteFooter';
 export const revalidate = 3600;
 
 export const metadata = {
-  title: 'Terms of Service',
+  title: 'Terms of Use',
   description: 'Terms and conditions for using JustGetFit.',
 };
 
@@ -36,7 +36,7 @@ export default async function TermsPage() {
       <SiteNav />
       <main style={{ maxWidth: 760, margin: '0 auto', padding: '64px 24px 96px' }}>
         <h1 style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8 }}>
-          Terms of Service
+          Terms of Use
         </h1>
         <p style={{ color: 'var(--text-3)', fontSize: 14, marginBottom: 40 }}>
           Last updated: {LAST_UPDATED}
@@ -44,7 +44,7 @@ export default async function TermsPage() {
 
         <div className="legal-prose" style={{ fontSize: 16, lineHeight: 1.7, color: 'var(--text)' }}>
           <p>
-            Welcome to JustGetFit. These Terms of Service (&quot;Terms&quot;) govern your use of
+            Welcome to JustGetFit. These Terms of Use (&quot;Terms&quot;) govern your use of
             justgetfit.org (the &quot;Site&quot;). By accessing or using the Site, you agree to
             these Terms. If you don&apos;t agree, please don&apos;t use the Site.
           </p>

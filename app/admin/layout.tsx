@@ -19,6 +19,12 @@ export const metadata = {
 
 const SECTIONS: { heading: string; links: { href: string; label: string; icon: string; countKey?: 'drafts' | 'topics' | 'subscribers' | 'inbox' }[] }[] = [
   {
+    heading: 'Insights',
+    links: [
+      { href: '/admin/analytics', label: 'Analytics', icon: '📊' },
+    ],
+  },
+  {
     heading: 'Content',
     links: [
       { href: '/admin/drafts', label: 'Drafts', icon: '📝', countKey: 'drafts' },

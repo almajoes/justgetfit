@@ -32,6 +32,12 @@ type Counts = {
 
 const MORE_SECTIONS: { heading: string; links: { href: string; label: string; icon: string; countKey?: 'drafts' | 'topics' | 'subscribers' | 'inbox' }[] }[] = [
   {
+    heading: 'Insights',
+    links: [
+      { href: '/admin/analytics', label: 'Analytics', icon: '📊' },
+    ],
+  },
+  {
     heading: 'Content',
     links: [
       { href: '/admin/topics', label: 'Topic queue', icon: '💡', countKey: 'topics' },
