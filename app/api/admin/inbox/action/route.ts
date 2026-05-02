@@ -36,6 +36,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'id and action are required' }, { status: 400 });
   }
 
+  // ─── Hard delete (separate path, no UPDATE) ──────────────────────────
+  // 'purge' permanently removes the row from the database. Only allowed for
+  // already soft-deleted messages — must have deleted_at IS NOT NULL.
+  // Two-step process: first verify the message is in the deleted state, then
+  // delete. This guard prevents accidentally hard-deleting an active message
+  // if the action is sent from the wrong tab somehow.
+  if (action === 'purge') {
+    const { data: existing, error: lookupErr } = await supabaseAdmin
+      .from('contact_messages')
+      .select('id, deleted_at')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (lookupErr) {
+      console.error(`[inbox/action] purge lookup failed for ${id}:`, lookupErr);
+      return NextResponse.json({ error: lookupErr.message }, { status: 500 });
+    }
+    if (!existing) {
+      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+    }
+    if (!existing.deleted_at) {
+      return NextResponse.json(
+        { error: 'Can only permanently delete messages that are already in the Deleted tab' },
+        { status: 400 }
+      );
+    }
+
+    const { error: delErr } = await supabaseAdmin
+      .from('contact_messages')
+      .delete()
+      .eq('id', id);
+
+    if (delErr) {
+      console.error(`[inbox/action] purge of ${id} failed:`, delErr);
+      return NextResponse.json({ error: delErr.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, purged: true });
+  }
+
+  // ─── Soft state changes (UPDATE) ─────────────────────────────────────
   let update: Record<string, string | null>;
   switch (action) {
     case 'read':
