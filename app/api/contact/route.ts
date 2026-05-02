@@ -92,16 +92,23 @@ export async function POST(request: NextRequest) {
   }
 
   // ─── Save + notify ───────────────────────────────────────────────────
-  // Save to DB regardless of email delivery
+  // Save to DB. Supabase returns errors via `{ error }` rather than throwing,
+  // so we have to check `error` explicitly — wrapping in try/catch alone
+  // missed silent failures historically (e.g. when the contact_messages table
+  // didn't exist, every insert returned an error but nothing logged because
+  // it didn't throw).
   try {
-    await supabaseAdmin.from('contact_messages').insert({
+    const { error: insertError } = await supabaseAdmin.from('contact_messages').insert({
       name,
       email,
       subject: subject || null,
       message,
     });
+    if (insertError) {
+      console.error('[contact] failed to save message:', insertError.message, insertError);
+    }
   } catch (err) {
-    console.error('Failed to save contact message:', err);
+    console.error('[contact] save threw:', err);
   }
 
   // Send notification to site owner

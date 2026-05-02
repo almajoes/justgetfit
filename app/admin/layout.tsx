@@ -25,6 +25,12 @@ const SECTIONS: { heading: string; links: { href: string; label: string; icon: s
     ],
   },
   {
+    heading: 'Messages',
+    links: [
+      { href: '/admin/inbox', label: 'Inbox', icon: '📬' },
+    ],
+  },
+  {
     heading: 'CMS',
     links: [
       { href: '/admin/pages', label: 'Pages', icon: '📄' },
