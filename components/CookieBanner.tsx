@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 /**
  * <CookieBanner />
@@ -26,9 +27,20 @@ import Link from 'next/link';
  * the user's choice is binary.
  */
 export function CookieBanner() {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
 
+  // Never show the banner on admin paths. Admin is owner-only and there's no
+  // reason to interrupt admin work with a consent prompt. This check runs on
+  // every render so even if the user navigates from /admin → /admin/inbox the
+  // banner stays hidden the whole time.
+  const isAdmin = pathname?.startsWith('/admin') ?? false;
+
   useEffect(() => {
+    if (isAdmin) {
+      setVisible(false);
+      return;
+    }
     // Show the banner only if no choice has been made yet
     const consent = readCookie('_jgf_consent');
     if (consent === null) {
@@ -36,7 +48,7 @@ export function CookieBanner() {
       const t = setTimeout(() => setVisible(true), 300);
       return () => clearTimeout(t);
     }
-  }, []);
+  }, [isAdmin]);
 
   function handleAccept() {
     writeCookie('_jgf_consent', 'true', 365);
