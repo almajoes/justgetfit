@@ -52,11 +52,22 @@ export async function GET(req: NextRequest) {
     })
     .eq('id', subscriber.id);
 
-  // Fire-and-forget owner notification. We don't await — redirect happens
-  // immediately and the email goes out in the background.
-  notifyOwnerNewSubscriber(subscriber.email, subscriber.source).catch((err) => {
-    console.error('[confirm] owner notification failed:', err);
-  });
+  // Owner notification — register with waitUntil so Vercel keeps the function
+  // alive past the redirect response until Resend's API call completes.
+  // Without waitUntil, an unawaited promise gets killed when the function
+  // returns, and the email never goes out (same bug pattern as fix #50).
+  // Lazy-loaded to fail open in non-Vercel runtimes (e.g. local dev).
+  const notifyPromise = notifyOwnerNewSubscriber(subscriber.email, subscriber.source).catch(
+    (err) => console.error('[confirm] owner notification failed:', err)
+  );
+  try {
+    const { waitUntil } = await import('@vercel/functions');
+    waitUntil(notifyPromise);
+  } catch {
+    // Non-Vercel fallback: await it. Blocks the redirect briefly but ensures
+    // the email goes out. Local dev hits this path.
+    await notifyPromise;
+  }
 
   return NextResponse.redirect(new URL('/subscribe?confirmed=1', req.url));
 }
