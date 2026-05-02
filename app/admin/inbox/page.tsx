@@ -1,7 +1,18 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { InboxClient } from '@/components/admin/InboxClient';
 
+// ─── Aggressive cache-busting ──────────────────────────────────────────
+// Triple-belt-and-suspenders to make sure Next.js / Vercel never ever serve
+// stale HTML for this page. Inbox content can change second-to-second (new
+// submissions, deletions, mark-read), so any caching is wrong here.
+//   - dynamic = 'force-dynamic' → opt out of static generation entirely
+//   - revalidate = 0           → no ISR caching
+//   - fetchCache = 'force-no-store' → don't cache any fetches inside
+//   - runtime nodejs           → use the same runtime as the rest of admin
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+export const runtime = 'nodejs';
 
 export const metadata = {
   title: 'Inbox · Admin',
@@ -9,6 +20,18 @@ export const metadata = {
 };
 
 type Filter = 'inbox' | 'archived' | 'deleted';
+
+type MessageRow = {
+  id: string;
+  created_at: string;
+  name: string;
+  email: string;
+  subject: string | null;
+  message: string;
+  read_at: string | null;
+  archived_at: string | null;
+  deleted_at: string | null;
+};
 
 export default async function AdminInboxPage({
   searchParams,
@@ -22,25 +45,16 @@ export default async function AdminInboxPage({
         ? 'deleted'
         : 'inbox';
 
-  // Fetch messages for the active filter.
-  //   inbox    → not archived AND not deleted (default)
-  //   archived → archived AND not deleted
-  //   deleted  → deleted (regardless of archive status)
-  let query = supabaseAdmin
+  // Pull every message in the table, then filter in JS. With contact form
+  // submissions, the table will never be larger than a few thousand rows
+  // even at peak — well within memory budget. Doing the filtering server-side
+  // in JS instead of via .is() / .not() avoids any chance of Supabase quirks
+  // around null comparisons leaking through.
+  const { data, error } = await supabaseAdmin
     .from('contact_messages')
     .select('id, created_at, name, email, subject, message, read_at, archived_at, deleted_at')
     .order('created_at', { ascending: false })
-    .order('id', { ascending: true }); // tiebreaker for same-timestamp rows
-
-  if (filter === 'inbox') {
-    query = query.is('archived_at', null).is('deleted_at', null);
-  } else if (filter === 'archived') {
-    query = query.not('archived_at', 'is', null).is('deleted_at', null);
-  } else {
-    query = query.not('deleted_at', 'is', null);
-  }
-
-  const { data: messages, error } = await query;
+    .order('id', { ascending: true });
 
   if (error) {
     return (
@@ -53,31 +67,31 @@ export default async function AdminInboxPage({
     );
   }
 
-  // Counts for the filter pills (run as separate count queries so they don't
-  // depend on the filter we're currently viewing). Using HEAD count for
-  // efficiency (no row data shipped).
-  const [{ count: inboxCount }, { count: archivedCount }, { count: deletedCount }, { count: unreadCount }] =
-    await Promise.all([
-      supabaseAdmin.from('contact_messages').select('id', { count: 'exact', head: true })
-        .is('archived_at', null).is('deleted_at', null),
-      supabaseAdmin.from('contact_messages').select('id', { count: 'exact', head: true })
-        .not('archived_at', 'is', null).is('deleted_at', null),
-      supabaseAdmin.from('contact_messages').select('id', { count: 'exact', head: true })
-        .not('deleted_at', 'is', null),
-      supabaseAdmin.from('contact_messages').select('id', { count: 'exact', head: true })
-        .is('read_at', null).is('archived_at', null).is('deleted_at', null),
-    ]);
+  const allMessages: MessageRow[] = (data as MessageRow[]) || [];
+
+  // Compute counts (always against the full set, not filtered)
+  const counts = {
+    inbox: allMessages.filter((m) => !m.archived_at && !m.deleted_at).length,
+    archived: allMessages.filter((m) => m.archived_at && !m.deleted_at).length,
+    deleted: allMessages.filter((m) => m.deleted_at).length,
+    unread: allMessages.filter((m) => !m.read_at && !m.archived_at && !m.deleted_at).length,
+  };
+
+  // Apply the active filter
+  let visibleMessages: MessageRow[];
+  if (filter === 'inbox') {
+    visibleMessages = allMessages.filter((m) => !m.archived_at && !m.deleted_at);
+  } else if (filter === 'archived') {
+    visibleMessages = allMessages.filter((m) => m.archived_at && !m.deleted_at);
+  } else {
+    visibleMessages = allMessages.filter((m) => m.deleted_at);
+  }
 
   return (
     <InboxClient
-      initialMessages={messages || []}
+      initialMessages={visibleMessages}
       filter={filter}
-      counts={{
-        inbox: inboxCount ?? 0,
-        archived: archivedCount ?? 0,
-        deleted: deletedCount ?? 0,
-        unread: unreadCount ?? 0,
-      }}
+      counts={counts}
     />
   );
 }
