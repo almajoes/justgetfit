@@ -1,25 +1,36 @@
 import Link from 'next/link';
 import { AdminBottomTabs } from '@/components/admin/AdminBottomTabs';
+import { getAdminCounts } from '@/lib/admin-counts';
+
+// ─── Aggressive cache-busting ──────────────────────────────────────────
+// The layout renders counter badges that must reflect real-time database
+// state. Without these directives Next.js will cache the layout HTML across
+// requests and counters will be stale (or worse, frozen at deploy time).
+// This is the same pattern used in /admin/inbox — required for any admin
+// surface that displays mutable data.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 export const metadata = {
   title: 'Admin',
   robots: { index: false, follow: false },
 };
 
-const SECTIONS: { heading: string; links: { href: string; label: string; icon: string }[] }[] = [
+const SECTIONS: { heading: string; links: { href: string; label: string; icon: string; countKey?: 'drafts' | 'topics' | 'subscribers' | 'inbox' }[] }[] = [
   {
     heading: 'Content',
     links: [
-      { href: '/admin/drafts', label: 'Drafts', icon: '📝' },
+      { href: '/admin/drafts', label: 'Drafts', icon: '📝', countKey: 'drafts' },
       { href: '/admin/posts', label: 'Posts', icon: '📰' },
-      { href: '/admin/topics', label: 'Topic queue', icon: '💡' },
+      { href: '/admin/topics', label: 'Topic queue', icon: '💡', countKey: 'topics' },
       { href: '/admin/generate', label: 'Generate articles', icon: '✨' },
     ],
   },
   {
     heading: 'Newsletter',
     links: [
-      { href: '/admin/subscribers', label: 'Subscribers', icon: '👥' },
+      { href: '/admin/subscribers', label: 'Subscribers', icon: '👥', countKey: 'subscribers' },
       { href: '/admin/broadcast', label: 'Broadcast', icon: '📣' },
       { href: '/admin/newsletter', label: 'Send log', icon: '📨' },
     ],
@@ -27,7 +38,7 @@ const SECTIONS: { heading: string; links: { href: string; label: string; icon: s
   {
     heading: 'Messages',
     links: [
-      { href: '/admin/inbox', label: 'Inbox', icon: '📬' },
+      { href: '/admin/inbox', label: 'Inbox', icon: '📬', countKey: 'inbox' },
     ],
   },
   {
@@ -45,19 +56,19 @@ const SECTIONS: { heading: string; links: { href: string; label: string; icon: s
 /**
  * AdminLayout
  *
- * Desktop: 240px sticky sidebar + main content area (existing layout).
- * Mobile (≤768px): sidebar hidden via CSS, fixed bottom tab bar replaces it,
- * main content gets bottom padding so the bar doesn't cover its bottom.
+ * Desktop: 240px sticky sidebar + main content area.
+ * Mobile (≤768px): sidebar hidden, bottom tab bar via <AdminBottomTabs/>.
  *
- * The bottom tab bar is a client component (`<AdminBottomTabs />`) — needs
- * usePathname() for active highlighting + state for the More sheet. Sidebar
- * stays as server-rendered markup so server pages hydrate without an extra
- * client boundary.
- *
- * Pages should use className="admin-page-pad" on their outer wrapper so the
- * mobile media query can shrink page padding from 32px → 16px.
+ * Counter system: layout fetches counts from getAdminCounts() on every render
+ * (no caching — see directives at top). Counts are passed to <AdminBottomTabs>
+ * for the mobile More sheet badges, AND rendered inline next to sidebar links
+ * for desktop. Badge clears when the user visits the section page (each
+ * section page calls markViewed() on render — see /admin/topics, /admin/inbox,
+ * etc. for the pattern).
  */
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const counts = await getAdminCounts();
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-0)' }}>
       <aside
@@ -96,25 +107,46 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 {sec.heading}
               </div>
-              {sec.links.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    fontSize: 13,
-                    color: 'var(--text-2)',
-                    textDecoration: 'none',
-                  }}
-                >
-                  <span style={{ fontSize: 14 }}>{l.icon}</span>
-                  <span>{l.label}</span>
-                </Link>
-              ))}
+              {sec.links.map((l) => {
+                const count = l.countKey ? counts[l.countKey] : 0;
+                return (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      color: 'var(--text-2)',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <span style={{ fontSize: 14 }}>{l.icon}</span>
+                    <span style={{ flex: 1 }}>{l.label}</span>
+                    {count > 0 && (
+                      <span
+                        style={{
+                          background: 'var(--neon)',
+                          color: 'var(--bg-0)',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '2px 7px',
+                          borderRadius: 100,
+                          minWidth: 18,
+                          textAlign: 'center',
+                          lineHeight: 1.4,
+                        }}
+                        aria-label={`${count} new`}
+                      >
+                        {count > 99 ? '99+' : count}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           ))}
           <Link
@@ -155,7 +187,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
       </aside>
       <main className="admin-main" style={{ flex: 1, minWidth: 0 }}>{children}</main>
-      <AdminBottomTabs />
+      <AdminBottomTabs counts={counts} />
     </div>
   );
 }

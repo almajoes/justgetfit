@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { SubscribersClient } from '@/components/admin/SubscribersClient';
 import type { Subscriber } from '@/lib/supabase';
+import { markViewed } from '@/lib/admin-counts';
 
 // Force this page to render on every request — never cache.
 export const dynamic = 'force-dynamic';
@@ -77,6 +78,9 @@ export default async function SubscribersAdminPage() {
     pending: subscribers.filter((s) => s.status === 'pending').length,
     unsubscribed: subscribers.filter((s) => s.status === 'unsubscribed').length,
   };
+
+  // Reset the subscribers counter — admin is looking at the page
+  await markViewed('subscribers');
 
   return <SubscribersClient subscribers={subscribers} stats={stats} />;
 }

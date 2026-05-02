@@ -23,18 +23,25 @@ import Link from 'next/link';
  * functionality remains accessible from the mobile UX.
  */
 
-const MORE_SECTIONS: { heading: string; links: { href: string; label: string; icon: string }[] }[] = [
+type Counts = {
+  drafts: number;
+  topics: number;
+  subscribers: number;
+  inbox: number;
+};
+
+const MORE_SECTIONS: { heading: string; links: { href: string; label: string; icon: string; countKey?: 'drafts' | 'topics' | 'subscribers' | 'inbox' }[] }[] = [
   {
     heading: 'Content',
     links: [
-      { href: '/admin/topics', label: 'Topic queue', icon: '💡' },
+      { href: '/admin/topics', label: 'Topic queue', icon: '💡', countKey: 'topics' },
       { href: '/admin/generate', label: 'Generate articles', icon: '✨' },
     ],
   },
   {
     heading: 'Messages',
     links: [
-      { href: '/admin/inbox', label: 'Inbox', icon: '📬' },
+      { href: '/admin/inbox', label: 'Inbox', icon: '📬', countKey: 'inbox' },
     ],
   },
   {
@@ -49,7 +56,7 @@ const MORE_SECTIONS: { heading: string; links: { href: string; label: string; ic
   },
 ];
 
-export function AdminMoreSheet({ onClose, currentPath }: { onClose: () => void; currentPath: string }) {
+export function AdminMoreSheet({ onClose, currentPath, counts }: { onClose: () => void; currentPath: string; counts?: Counts }) {
   // Lock body scroll while open + handle Escape
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -86,6 +93,7 @@ export function AdminMoreSheet({ onClose, currentPath }: { onClose: () => void; 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {sec.links.map((l) => {
                   const active = currentPath === l.href || currentPath.startsWith(l.href + '/');
+                  const count = (l.countKey && counts) ? counts[l.countKey] : 0;
                   return (
                     <Link
                       key={l.href}
@@ -96,7 +104,24 @@ export function AdminMoreSheet({ onClose, currentPath }: { onClose: () => void; 
                     >
                       <span style={{ fontSize: 18 }}>{l.icon}</span>
                       <span style={{ flex: 1 }}>{l.label}</span>
-                      {active && <span style={{ fontSize: 11, color: 'var(--neon)' }}>●</span>}
+                      {count > 0 && (
+                        <span
+                          style={{
+                            background: 'var(--neon)',
+                            color: 'var(--bg-0)',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 100,
+                            minWidth: 20,
+                            textAlign: 'center',
+                          }}
+                          aria-label={`${count} new`}
+                        >
+                          {count > 99 ? '99+' : count}
+                        </span>
+                      )}
+                      {active && count === 0 && <span style={{ fontSize: 11, color: 'var(--neon)' }}>●</span>}
                     </Link>
                   );
                 })}
