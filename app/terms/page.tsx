@@ -4,8 +4,8 @@ import { SiteFooter } from '@/components/SiteFooter';
 export const revalidate = 3600;
 
 export const metadata = {
-  title: 'Terms of Use',
-  description: 'Terms and conditions for using JustGetFit.',
+  title: 'Terms of Service',
+  description: 'Terms and conditions for using JustGetFit and the JustGetFit app.',
 };
 
 const LAST_UPDATED = 'May 2, 2026';
@@ -15,20 +15,15 @@ const LAST_UPDATED = 'May 2, 2026';
  *
  * Static React content. To update: edit this file directly, push, redeploy.
  *
- * This is a reasonable starting ToS for a content + newsletter site with
- * affiliate/partner links and Google AdSense. NOT legal advice — you should
- * have a real lawyer review before relying on this for any serious dispute.
+ * Scope: covers the blog (justgetfit.org), the newsletter, AND any apps or
+ * tools offered under the JustGetFit brand (e.g., app.justgetfit.org). Uses
+ * "Services" as a defined umbrella term so we don't need separate ToS docs
+ * per surface. If the app ever has materially different terms (e.g., paid
+ * tiers, in-app purchases, AI-generated content disclaimers specific to the
+ * plan generator), add a dedicated section here rather than splitting docs.
  *
- * Sections cover:
- *   - Acceptance of terms
- *   - Use of the site (acceptable use)
- *   - User content (contact form, newsletter)
- *   - Intellectual property (your articles)
- *   - Affiliate disclosure (you have partner links)
- *   - Health disclaimer (fitness content — not medical advice)
- *   - Disclaimers + liability limitations
- *   - Modifications and termination
- *   - Governing law
+ * NOT legal advice. Have a lawyer review before relying on this for serious
+ * disputes.
  */
 export default async function TermsPage() {
   return (
@@ -36,7 +31,7 @@ export default async function TermsPage() {
       <SiteNav />
       <main style={{ maxWidth: 760, margin: '0 auto', padding: '64px 24px 96px' }}>
         <h1 style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8 }}>
-          Terms of Use
+          Terms of Service
         </h1>
         <p style={{ color: 'var(--text-3)', fontSize: 14, marginBottom: 40 }}>
           Last updated: {LAST_UPDATED}
@@ -44,149 +39,227 @@ export default async function TermsPage() {
 
         <div className="legal-prose" style={{ fontSize: 16, lineHeight: 1.7, color: 'var(--text)' }}>
           <p>
-            Welcome to JustGetFit. These Terms of Use (&quot;Terms&quot;) govern your use of
-            justgetfit.org (the &quot;Site&quot;). By accessing or using the Site, you agree to
-            these Terms. If you don&apos;t agree, please don&apos;t use the Site.
+            Welcome to JustGetFit. These Terms of Service (&quot;Terms&quot;) govern your use of
+            the JustGetFit website at justgetfit.org, our email newsletter, our mobile and web
+            applications (including any apps available at subdomains such as app.justgetfit.org),
+            and any other products, features, content, or services we make available
+            (collectively, the &quot;Services&quot;).
+          </p>
+          <p>
+            By accessing or using any of the Services, you agree to these Terms. If you
+            don&apos;t agree, please don&apos;t use the Services.
           </p>
 
-          <h2>1. Use of the Site</h2>
-          <p>
-            You may read articles, browse content, subscribe to our newsletter, and contact us via
-            the forms provided. You agree not to:
-          </p>
+          <h2>1. The Services</h2>
+          <p>JustGetFit currently offers:</p>
           <ul>
-            <li>Attempt to break, hack, or otherwise compromise the Site&apos;s security</li>
-            <li>Use automated tools to scrape or harvest content beyond reasonable use</li>
-            <li>Submit spam, abusive, or malicious content via any forms</li>
-            <li>Use the Site in any way that violates applicable laws</li>
+            <li>
+              <strong>Blog and articles</strong> at justgetfit.org — fitness, nutrition,
+              and wellness content available to read for free.
+            </li>
+            <li>
+              <strong>Email newsletter</strong> — periodic emails about fitness content
+              and related topics, delivered to subscribers who opt in.
+            </li>
+            <li>
+              <strong>Apps and tools</strong> (including planned offerings at
+              app.justgetfit.org) that may provide personalized workout plans, meal
+              suggestions, progress tracking, and similar fitness features.
+            </li>
+          </ul>
+          <p>
+            We may add, change, suspend, or discontinue parts of the Services at any time.
+            If we do something that materially affects your account or stored data (such as
+            shutting down a feature you actively use), we&apos;ll make a reasonable effort to
+            notify you in advance.
+          </p>
+
+          <h2>2. Accounts</h2>
+          <p>
+            Some Services (such as the upcoming app) require an account. You agree to provide
+            accurate information when creating an account, to keep your login credentials
+            confidential, and to notify us promptly if you suspect unauthorized use of your
+            account. You are responsible for activity under your account.
+          </p>
+          <p>
+            You may not create accounts using false information, impersonate other people,
+            or share your account credentials with others. We may suspend or terminate
+            accounts that violate these Terms.
+          </p>
+
+          <h2>3. Acceptable use</h2>
+          <p>You agree not to:</p>
+          <ul>
+            <li>Attempt to break, hack, or otherwise compromise the security of the Services</li>
+            <li>Use automated tools to scrape, harvest, or extract content beyond reasonable use</li>
+            <li>Submit spam, abusive, defamatory, or malicious content via any forms or features</li>
+            <li>Use the Services in any way that violates applicable laws or third-party rights</li>
             <li>Impersonate any person or entity, or misrepresent your affiliation</li>
+            <li>Reverse engineer, decompile, or disassemble any part of the Services</li>
+            <li>Interfere with other users&apos; ability to use the Services</li>
           </ul>
 
-          <h2>2. Health and fitness content</h2>
+          <h2>4. Health and fitness disclaimer</h2>
           <p>
-            <strong>JustGetFit publishes fitness, nutrition, and wellness content for
-            informational and educational purposes only. The content is not medical advice.</strong>
+            <strong>JustGetFit publishes fitness, nutrition, and wellness content (including
+            content generated by our apps and tools) for informational and educational purposes
+            only. The content is not medical advice.</strong>
           </p>
           <p>
-            We are not doctors, dietitians, or licensed medical professionals. Before starting
-            any new exercise program, diet, or supplement, consult with a qualified healthcare
-            provider — especially if you have any pre-existing condition, are pregnant, or are
-            taking medication. The information on this Site should not be used to diagnose or
-            treat any health problem.
+            We are not doctors, dietitians, or licensed medical professionals. Workout plans,
+            meal suggestions, and similar personalized output from our apps are general
+            recommendations based on the information you provide — they are not personalized
+            medical guidance. Before starting any new exercise program, diet, or supplement
+            regimen, consult with a qualified healthcare provider, especially if you have any
+            pre-existing condition, are pregnant, or are taking medication.
           </p>
           <p>
-            You take full responsibility for any actions you take based on the content you read
-            here. Results vary from person to person; nothing on this Site guarantees specific
-            outcomes.
-          </p>
-
-          <h2>3. Affiliate disclosure</h2>
-          <p>
-            Some links on JustGetFit are affiliate links. If you click one and make a purchase,
-            we may receive a commission at no additional cost to you. This helps support the
-            Site. We only recommend products we genuinely believe in — affiliate compensation
-            does not influence our editorial choices.
-          </p>
-          <p>
-            JustGetFit is also a participant in third-party advertising programs (including
-            Google AdSense), which display ads on the Site. We don&apos;t control which specific
-            ads are shown — that&apos;s determined by the ad network.
+            You take full responsibility for any actions you take based on content from the
+            Services. Results vary from person to person; nothing on the Services guarantees
+            specific outcomes. <strong>Stop any activity that causes pain, injury, or distress
+            and consult a qualified professional.</strong>
           </p>
 
-          <h2>4. Newsletter</h2>
+          <h2>5. AI-generated content</h2>
+          <p>
+            Some Services (such as the planned app) may use AI to generate workout plans,
+            meal suggestions, or other personalized content. AI-generated content can contain
+            errors, omissions, or recommendations that aren&apos;t suitable for your situation.
+            We do our best to validate output, but we cannot guarantee accuracy, completeness,
+            or appropriateness for any specific purpose.
+          </p>
+          <p>
+            Use AI-generated content as a starting point, not a final authority. Apply common
+            sense, listen to your body, and consult a qualified professional when in doubt.
+          </p>
+
+          <h2>6. Affiliate disclosure and advertising</h2>
+          <p>
+            Some links in the Services are affiliate links. If you click one and make a
+            purchase, we may receive a commission at no additional cost to you. This helps
+            support the Services. We only recommend products we genuinely believe in;
+            affiliate compensation does not influence our editorial choices.
+          </p>
+          <p>
+            Parts of the Services (currently the blog) display third-party advertisements
+            via Google AdSense. We don&apos;t control which specific ads appear; that&apos;s
+            determined by the ad network based on its own targeting.
+          </p>
+
+          <h2>7. Newsletter</h2>
           <p>
             By subscribing to our newsletter, you agree to receive periodic emails about
-            fitness content, articles, and related topics. You can unsubscribe at any time using
-            the link at the bottom of any email. Unsubscribing immediately stops future emails;
-            it may take up to 24 hours for already-queued emails to fully stop.
+            fitness content, articles, and related topics. You can unsubscribe at any time
+            using the link at the bottom of any email. Unsubscribing immediately stops future
+            emails; it may take up to 24 hours for already-queued emails to fully stop.
           </p>
 
-          <h2>5. Intellectual property</h2>
+          <h2>8. Your content</h2>
           <p>
-            All content on JustGetFit — articles, images (where original or licensed),
-            illustrations, logos, and branding — is owned by JustGetFit or its licensors and is
-            protected by copyright and trademark law. You may:
+            When you submit content to the Services (such as messages via the contact form,
+            workout logs, profile information, or feedback), you grant us a non-exclusive,
+            royalty-free license to store, process, and use that content as needed to operate
+            the Services for you. We don&apos;t sell your personal data, and we don&apos;t
+            publish your private content publicly without your explicit permission.
+          </p>
+          <p>
+            You agree not to submit content that&apos;s illegal, infringing, defamatory,
+            harassing, or abusive. We reserve the right to remove any submission that
+            violates these Terms.
+          </p>
+
+          <h2>9. Our intellectual property</h2>
+          <p>
+            All content provided through the Services — articles, images (where original or
+            licensed), illustrations, logos, branding, software, and AI prompts and
+            workflows — is owned by JustGetFit or its licensors and is protected by
+            copyright, trademark, and other intellectual property laws. You may:
           </p>
           <ul>
-            <li>Read, browse, and view content for personal use</li>
+            <li>Read, browse, and view content for personal, non-commercial use</li>
             <li>Share article links with others</li>
             <li>Quote brief excerpts with proper attribution and a link back to the original</li>
+            <li>Use the apps and tools as intended for your personal fitness goals</li>
           </ul>
           <p>You may not:</p>
           <ul>
-            <li>Republish full articles on your own site without permission</li>
+            <li>Republish full articles or AI-generated plans on your own site without permission</li>
             <li>Use our content commercially without a license</li>
             <li>Remove or alter copyright notices, attribution, or branding</li>
             <li>Train AI/ML models on our content without explicit written permission</li>
+            <li>Reproduce, sell, or redistribute any part of the Services as your own</li>
           </ul>
           <p>
             For licensing or republication requests, contact us via the contact form.
           </p>
 
-          <h2>6. User-submitted content</h2>
+          <h2>10. Disclaimers</h2>
           <p>
-            When you submit a message via the contact form, you grant us permission to read,
-            store, and respond to it. We won&apos;t publish your contact form submission publicly
-            without your explicit permission.
-          </p>
-          <p>
-            You agree not to submit content that&apos;s illegal, defamatory, infringing, harassing,
-            or abusive. We reserve the right to ignore and delete any submission that violates
-            these terms.
-          </p>
-
-          <h2>7. Disclaimers</h2>
-          <p>
-            The Site is provided &quot;as is&quot; and &quot;as available&quot;, without warranties of any kind,
-            either express or implied. We don&apos;t guarantee that:
+            The Services are provided &quot;as is&quot; and &quot;as available&quot;, without warranties of any
+            kind, express or implied, including but not limited to warranties of
+            merchantability, fitness for a particular purpose, accuracy, or non-infringement.
+            We don&apos;t guarantee that:
           </p>
           <ul>
-            <li>The Site will be available without interruption</li>
+            <li>The Services will be available without interruption</li>
             <li>The content will be error-free or always up to date</li>
-            <li>Any specific result will be achieved by following our content</li>
+            <li>Any specific result (fitness, health, weight, etc.) will be achieved</li>
             <li>External links will continue to work or remain accurate</li>
+            <li>AI-generated content will be suitable for your specific situation</li>
           </ul>
 
-          <h2>8. Limitation of liability</h2>
+          <h2>11. Limitation of liability</h2>
           <p>
-            To the maximum extent permitted by law, JustGetFit and its operators shall not be
-            liable for any indirect, incidental, special, consequential, or punitive damages
-            arising from your use of (or inability to use) the Site, including but not limited
-            to loss of profits, data, or goodwill — even if we&apos;ve been advised of the
-            possibility of such damages.
+            To the maximum extent permitted by law, JustGetFit and its operators shall not
+            be liable for any indirect, incidental, special, consequential, or punitive
+            damages arising from or related to your use of (or inability to use) the
+            Services, including but not limited to physical injury, loss of profits, data,
+            goodwill, or any other intangible losses — even if we&apos;ve been advised of
+            the possibility of such damages.
           </p>
           <p>
             Some jurisdictions don&apos;t allow these limitations, so they may not apply to you.
           </p>
 
-          <h2>9. External links</h2>
+          <h2>12. External links and third-party services</h2>
           <p>
-            The Site contains links to third-party websites. We&apos;re not responsible for the
-            content, privacy practices, or accuracy of any external site. Linking does not
+            The Services contain links to third-party websites and integrate with third-party
+            services (such as Resend for email delivery, Supabase for data storage, Google
+            AdSense, and Google reCAPTCHA). We&apos;re not responsible for the content,
+            privacy practices, or accuracy of any external service. Linking does not
             constitute an endorsement.
           </p>
 
-          <h2>10. Modifications</h2>
+          <h2>13. Modifications</h2>
           <p>
-            We may update these Terms from time to time. The &quot;Last updated&quot; date at the top of
-            the page reflects the most recent change. Continued use of the Site after changes
-            means you accept the updated Terms.
+            We may update these Terms from time to time. The &quot;Last updated&quot; date at the
+            top of the page reflects the most recent change. Material changes will be
+            announced via the newsletter or in-app notice where appropriate. Continued use
+            of the Services after changes means you accept the updated Terms.
           </p>
 
-          <h2>11. Termination</h2>
+          <h2>14. Termination</h2>
           <p>
-            We may, at our sole discretion, suspend or terminate access to the Site for users
-            who violate these Terms. You may stop using the Site at any time.
+            We may, at our sole discretion, suspend or terminate your access to the Services
+            (including app accounts) for users who violate these Terms or whose use we
+            reasonably believe poses a risk to the Services or other users. You may stop
+            using the Services at any time, and you may request account deletion via the
+            contact form.
+          </p>
+          <p>
+            Sections that should reasonably survive termination (such as intellectual
+            property, disclaimers, limitation of liability, and governing law) will continue
+            to apply.
           </p>
 
-          <h2>12. Governing law</h2>
+          <h2>15. Governing law</h2>
           <p>
-            These Terms are governed by the laws of the United States and the state in which
-            JustGetFit is operated. Any disputes shall be resolved in the courts of that
-            jurisdiction.
+            These Terms are governed by the laws of the United States and the state in
+            which JustGetFit is operated. Any disputes shall be resolved in the courts of
+            that jurisdiction.
           </p>
 
-          <h2>13. Contact</h2>
+          <h2>16. Contact</h2>
           <p>
             Questions about these Terms? Use our{' '}
             <a href="/contact">contact form</a>.

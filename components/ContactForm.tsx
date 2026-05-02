@@ -47,14 +47,36 @@ export function ContactForm({ labels, placeholders, successMessage }: Props) {
   useEffect(() => {
     if (!RECAPTCHA_SITE_KEY) return;
     const existing = document.querySelector('script[data-recaptcha]');
-    if (existing) return;
-    const s = document.createElement('script');
-    s.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
-    s.async = true;
-    s.defer = true;
-    s.dataset.recaptcha = 'true';
-    document.head.appendChild(s);
-    // No cleanup — script can persist; no leak since we guard against re-injecting
+    if (!existing) {
+      const s = document.createElement('script');
+      s.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
+      s.async = true;
+      s.defer = true;
+      s.dataset.recaptcha = 'true';
+      document.head.appendChild(s);
+    }
+
+    // Cleanup on unmount: remove the floating badge that Google injects into
+    // <body>. Without this, the badge persists across client-side navigations
+    // even after leaving /contact (since SPA navigation doesn't reload the
+    // page or re-run scripts). The badge sticks in the corner of every other
+    // page until a hard refresh.
+    //
+    // We leave the script tag and window.grecaptcha alone — those have no
+    // visual presence and re-using them on a return visit to /contact is
+    // faster than re-loading.
+    return () => {
+      const badges = document.querySelectorAll('.grecaptcha-badge');
+      badges.forEach((b) => {
+        // The badge is wrapped in a positioned container; remove that too
+        const wrapper = b.parentElement;
+        if (wrapper && wrapper !== document.body) {
+          wrapper.remove();
+        } else {
+          b.remove();
+        }
+      });
+    };
   }, []);
 
   async function getRecaptchaToken(): Promise<string | null> {
