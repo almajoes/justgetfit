@@ -311,6 +311,13 @@ function TimelineBars({ data, compact }: { data: TopRow[]; compact?: boolean }) 
   if (data.length === 0) {
     return <Empty>No data.</Empty>;
   }
+
+  // Decide which bars get labels under them. Goal: ~5-7 labels visible so the
+  // chart is readable but not crowded. For compact (5-bar) views, label every
+  // bar. For 24-hour views, label every 4 hours. For 30-day views, label
+  // every 5 days. Etc.
+  const labelEvery = pickLabelInterval(data.length, compact);
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height, paddingBottom: 4 }}>
@@ -333,15 +340,48 @@ function TimelineBars({ data, compact }: { data: TopRow[]; compact?: boolean }) 
           );
         })}
       </div>
-      {!compact && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: 'var(--text-3)' }}>
-          <span>{data[0]?.label}</span>
-          <span>{data[Math.floor(data.length / 2)]?.label}</span>
-          <span>{data[data.length - 1]?.label}</span>
-        </div>
-      )}
+      {/* Bar-aligned labels — same flex layout as the bars above so each
+          label sits directly under its column. Empty slots keep alignment for
+          un-labeled bars. */}
+      <div style={{ display: 'flex', gap: 2, marginTop: 6 }}>
+        {data.map((d, i) => {
+          // Always label first and last; otherwise every Nth.
+          const showLabel = i === 0 || i === data.length - 1 || i % labelEvery === 0;
+          return (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                fontSize: 10,
+                color: 'var(--text-3)',
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'clip',
+              }}
+            >
+              {showLabel ? d.label : ''}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
+}
+
+/**
+ * Pick how often to show a label so the chart has roughly 5-7 visible labels.
+ *  - compact (5-bar Live view): every bar
+ *  - 24-bar (today/yesterday hourly): every 4 hours
+ *  - 7-bar (7d): every bar
+ *  - 30-bar (30d): every ~5 days
+ */
+function pickLabelInterval(length: number, compact?: boolean): number {
+  if (compact) return 1;
+  if (length <= 8) return 1;
+  if (length <= 24) return 4;
+  if (length <= 31) return 5;
+  return Math.max(1, Math.floor(length / 6));
 }
 
 function RangePill({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {

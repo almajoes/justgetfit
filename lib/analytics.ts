@@ -247,12 +247,16 @@ function buildRawTimeline(
   bounds: RangeBounds
 ): TopRow[] {
   if (range === 'now') {
-    // 5 buckets of 1 minute each — these are minute-granular so timezone
-    // doesn't matter for labeling
-    const buckets = new Array(5).fill(0).map((_, i) => ({
-      label: `-${4 - i}m`,
-      count: 0,
-    }));
+    // 5 buckets of 1 minute each. Labels: "5m ago", "4m", "3m", "2m", "now"
+    // — reads naturally left-to-right (oldest to newest).
+    const buckets = new Array(5).fill(0).map((_, i) => {
+      const minutesAgo = 4 - i;
+      let label: string;
+      if (minutesAgo === 0) label = 'now';
+      else if (minutesAgo === 4) label = '5m ago';
+      else label = `${minutesAgo}m`;
+      return { label, count: 0 };
+    });
     const start = new Date(bounds.startIso).getTime();
     for (const r of rows) {
       const ts = new Date(r.created_at).getTime();
