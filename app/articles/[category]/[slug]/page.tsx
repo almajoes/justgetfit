@@ -9,6 +9,7 @@ import { SiteFooter } from '@/components/SiteFooter';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { AppCTA } from '@/components/AppCTA';
 import { getCategories } from '@/lib/cms';
+import { preprocessMarkdown } from '@/lib/markdown';
 
 export const revalidate = 0;
 
@@ -222,7 +223,7 @@ export default async function ArticlePage({ params }: { params: { category: stri
             )}
 
             <div className="about-body" style={{ fontSize: 17, lineHeight: 1.75 }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessMarkdown(post.content)}</ReactMarkdown>
             </div>
 
             {/* End-of-article CTA — promotes the Just Get Fit app to readers

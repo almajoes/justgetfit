@@ -28,21 +28,35 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
   }
 
-  async function persist(id: string) {
-    const item = items.find((i) => i.id === id);
-    if (!item) return;
-    setSavingIds((s) => new Set(s).add(id));
-    await fetch(`/api/admin/nav-items/${id}`, {
+  /**
+   * Persist a SPECIFIC item by passing the full item object directly. This
+   * version avoids the stale-state trap that the old `persist(id)` had:
+   * `setItems` is async, so calling `update()` and then `persist(id)` in the
+   * same tick would persist the OLD state because `items.find(...)` reads the
+   * captured closure value. Pass the new item explicitly to bypass the issue.
+   */
+  async function persistItem(item: NavItem) {
+    setSavingIds((s) => new Set(s).add(item.id));
+    await fetch(`/api/admin/nav-items/${item.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item),
     });
     setSavingIds((s) => {
       const n = new Set(s);
-      n.delete(id);
+      n.delete(item.id);
       return n;
     });
     router.refresh();
+  }
+
+  // Wrapper kept for callers that already had the latest item in state
+  // (field-level edits where the user just typed and the state is current
+  // by the time persist is called).
+  async function persist(id: string) {
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+    await persistItem(item);
   }
 
   async function move(id: string, location: Location, dir: -1 | 1) {
@@ -52,9 +66,17 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
     if (j < 0 || j >= list.length) return;
     const a = list[idx];
     const b = list[j];
-    update(a.id, { sort_order: b.sort_order });
-    update(b.id, { sort_order: a.sort_order });
-    await Promise.all([persist(a.id), persist(b.id)]);
+
+    // Build the swapped objects EXPLICITLY rather than calling update() and
+    // then trying to read the swapped values back from React state. Update
+    // local state for instant UI feedback, then persist with the explicit
+    // values we computed above — never going through stale React state.
+    const swappedA = { ...a, sort_order: b.sort_order };
+    const swappedB = { ...b, sort_order: a.sort_order };
+    setItems((prev) =>
+      prev.map((it) => (it.id === a.id ? swappedA : it.id === b.id ? swappedB : it))
+    );
+    await Promise.all([persistItem(swappedA), persistItem(swappedB)]);
   }
 
   async function deleteItem(id: string) {
@@ -106,13 +128,15 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
           <p style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 16 }}>{section.desc}</p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {groups[section.key].map((it, idx) => (
+            {groups[section.key].map((it, idx) => {
+              const isSaving = savingIds.has(it.id);
+              return (
               <div
                 key={it.id}
                 className="admin-grid-rowstack"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '1fr 1.5fr auto auto auto auto',
+                  gridTemplateColumns: '1fr 1.5fr auto auto auto auto auto',
                   gap: 8,
                   alignItems: 'center',
                   padding: 8,
@@ -140,19 +164,35 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
                       type="checkbox"
                       checked={it.is_cta}
                       onChange={(e) => {
-                        update(it.id, { is_cta: e.target.checked });
-                        persist(it.id);
+                        // Persist with the new value EXPLICITLY — don't read
+                        // back through state or we hit the same stale-state
+                        // bug as move().
+                        const updated = { ...it, is_cta: e.target.checked };
+                        setItems((prev) => prev.map((x) => (x.id === it.id ? updated : x)));
+                        persistItem(updated);
                       }}
                     />
                     CTA
                   </label>
                 )}
                 {!section.allowCta && <span />}
-                <button onClick={() => move(it.id, section.key, -1)} disabled={idx === 0} style={miniBtn}>↑</button>
-                <button onClick={() => move(it.id, section.key, 1)} disabled={idx === groups[section.key].length - 1} style={miniBtn}>↓</button>
+                <button onClick={() => move(it.id, section.key, -1)} disabled={idx === 0 || isSaving} style={miniBtn}>↑</button>
+                <button onClick={() => move(it.id, section.key, 1)} disabled={idx === groups[section.key].length - 1 || isSaving} style={miniBtn}>↓</button>
                 <button onClick={() => deleteItem(it.id)} style={{ ...miniBtn, color: '#ff6b6b' }}>×</button>
+                <span
+                  aria-live="polite"
+                  style={{
+                    fontSize: 11,
+                    color: isSaving ? 'var(--neon)' : 'var(--text-3)',
+                    minWidth: 56,
+                    textAlign: 'right',
+                  }}
+                >
+                  {isSaving ? 'Saving…' : ''}
+                </span>
               </div>
-            ))}
+              );
+            })}
             {groups[section.key].length === 0 && (
               <p style={{ color: 'var(--text-3)', fontSize: 13, padding: 8 }}>No items.</p>
             )}

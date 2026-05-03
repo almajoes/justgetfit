@@ -628,6 +628,77 @@ h1.hero-h, .hero-h {
   color: var(--text);
   scroll-margin-top: 90px;
 }
+/* Lists in article bodies — explicit rules so bullets always render correctly
+   regardless of authoring style. Spacing matches the surrounding paragraph
+   rhythm so lists don't feel cramped. */
+.about-body ul, .about-body ol {
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1.75;
+  margin: 0 0 18px;
+  padding-left: 28px;
+}
+.about-body ul { list-style: disc outside; }
+.about-body ol { list-style: decimal outside; }
+.about-body li { margin: 0 0 8px; padding-left: 4px; }
+.about-body li::marker { color: var(--text-3); }
+.about-body li > p { margin: 0 0 8px; }
+.about-body li > ul, .about-body li > ol { margin: 8px 0; }
+.about-body strong { color: var(--text); font-weight: 600; }
+.about-body em { font-style: italic; }
+.about-body code {
+  background: rgba(255,255,255,0.07);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  color: var(--text);
+}
+.about-body pre {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  margin: 0 0 18px;
+}
+.about-body pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.about-body blockquote {
+  margin: 0 0 18px;
+  padding: 4px 0 4px 18px;
+  border-left: 3px solid var(--neon);
+  color: var(--text-2);
+  font-style: italic;
+}
+.about-body a {
+  color: var(--neon);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.about-body hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 32px 0;
+}
+.about-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 18px;
+  font-size: 15px;
+}
+.about-body th, .about-body td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-2);
+}
+.about-body th { color: var(--text); font-weight: 700; background: rgba(255,255,255,0.03); }
 .pillar-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
