@@ -7,6 +7,7 @@ import type { Post } from '@/lib/supabase';
 import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { AppCTA } from '@/components/AppCTA';
 import { getCategories } from '@/lib/cms';
 
 export const revalidate = 0;
@@ -223,6 +224,10 @@ export default async function ArticlePage({ params }: { params: { category: stri
             <div className="about-body" style={{ fontSize: 17, lineHeight: 1.75 }}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.content}</ReactMarkdown>
             </div>
+
+            {/* End-of-article CTA — promotes the Just Get Fit app to readers
+                who finished the article (warm leads, peak intent moment). */}
+            <AppCTA variant="inline" />
 
             <div
               style={{
