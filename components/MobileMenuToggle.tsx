@@ -9,6 +9,7 @@ type NavLink = {
   label: string;
   url: string;
   is_cta: boolean;
+  new_tab?: boolean;
 };
 
 export function MobileMenuToggle({ links }: { links: NavLink[] }) {
@@ -89,7 +90,13 @@ export function MobileMenuToggle({ links }: { links: NavLink[] }) {
             </li>
             {regularLinks.map((l) => (
               <li key={l.id}>
-                <Link href={l.url} onClick={() => setOpen(false)}>{l.label}</Link>
+                {l.new_tab ? (
+                  <a href={l.url} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>
+                    {l.label}
+                  </a>
+                ) : (
+                  <Link href={l.url} onClick={() => setOpen(false)}>{l.label}</Link>
+                )}
               </li>
             ))}
           </ul>

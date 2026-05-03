@@ -24,7 +24,11 @@ export async function SiteFooter() {
             <ul>
               {quickLinks.map((l) => (
                 <li key={l.id}>
-                  <Link href={l.url}>{l.label}</Link>
+                  {l.new_tab ? (
+                    <a href={l.url} target="_blank" rel="noopener noreferrer">{l.label}</a>
+                  ) : (
+                    <Link href={l.url}>{l.label}</Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -34,7 +38,11 @@ export async function SiteFooter() {
             <ul>
               {categories.map((l) => (
                 <li key={l.id}>
-                  <Link href={l.url}>{l.label}</Link>
+                  {l.new_tab ? (
+                    <a href={l.url} target="_blank" rel="noopener noreferrer">{l.label}</a>
+                  ) : (
+                    <Link href={l.url}>{l.label}</Link>
+                  )}
                 </li>
               ))}
             </ul>

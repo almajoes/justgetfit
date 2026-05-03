@@ -19,14 +19,26 @@ export async function SiteNav() {
         <ul className="nav-menu nav-menu-desktop">
           {regularLinks.map((l) => (
             <li key={l.id}>
-              <Link href={l.url}>{l.label}</Link>
+              {l.new_tab ? (
+                <a href={l.url} target="_blank" rel="noopener noreferrer">
+                  {l.label}
+                </a>
+              ) : (
+                <Link href={l.url}>{l.label}</Link>
+              )}
             </li>
           ))}
           {ctaLink && (
             <li>
-              <Link href={ctaLink.url} className="nav-cta">
-                {ctaLink.label}
-              </Link>
+              {ctaLink.new_tab ? (
+                <a href={ctaLink.url} target="_blank" rel="noopener noreferrer" className="nav-cta">
+                  {ctaLink.label}
+                </a>
+              ) : (
+                <Link href={ctaLink.url} className="nav-cta">
+                  {ctaLink.label}
+                </Link>
+              )}
             </li>
           )}
         </ul>
@@ -34,11 +46,17 @@ export async function SiteNav() {
         {/* Mobile: Subscribe button alongside hamburger */}
         <div className="nav-mobile-actions">
           {ctaLink && (
-            <Link href={ctaLink.url} className="nav-cta nav-cta-mobile">
-              {ctaLink.label}
-            </Link>
+            ctaLink.new_tab ? (
+              <a href={ctaLink.url} target="_blank" rel="noopener noreferrer" className="nav-cta nav-cta-mobile">
+                {ctaLink.label}
+              </a>
+            ) : (
+              <Link href={ctaLink.url} className="nav-cta nav-cta-mobile">
+                {ctaLink.label}
+              </Link>
+            )
           )}
-          <MobileMenuToggle links={navItems.map((n) => ({ id: n.id, label: n.label, url: n.url, is_cta: n.is_cta }))} />
+          <MobileMenuToggle links={navItems.map((n) => ({ id: n.id, label: n.label, url: n.url, is_cta: n.is_cta, new_tab: n.new_tab }))} />
         </div>
       </div>
     </nav>

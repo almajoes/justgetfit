@@ -81,6 +81,7 @@ export type NavItem = {
   label: string;
   url: string;
   is_cta: boolean;
+  new_tab: boolean;
   sort_order: number;
   active: boolean;
   created_at: string;

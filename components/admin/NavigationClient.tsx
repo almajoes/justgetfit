@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import type { NavItem } from '@/lib/supabase';
 
 type Location = 'main_nav' | 'footer_quick_links' | 'footer_categories';
@@ -12,7 +11,6 @@ const SECTIONS: { key: Location; title: string; desc: string; allowCta?: boolean
 ];
 
 export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) {
-  const router = useRouter();
   const [items, setItems] = useState<NavItem[]>(initialItems);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
 
@@ -34,20 +32,30 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
    * `setItems` is async, so calling `update()` and then `persist(id)` in the
    * same tick would persist the OLD state because `items.find(...)` reads the
    * captured closure value. Pass the new item explicitly to bypass the issue.
+   *
+   * **Optimistic-only** — does NOT call router.refresh() after persist. Local
+   * state is the source of truth for the duration of this admin session.
+   * Trade-off: if a persist fails (network drop, server error), the UI will
+   * show the wrong state until the user manually refreshes the page. We trade
+   * that rare failure case for instant UI response on the common case.
+   * Without this change, every reorder waited 1-3s for a server round trip
+   * + RSC re-fetch + re-render before showing the new order.
    */
   async function persistItem(item: NavItem) {
     setSavingIds((s) => new Set(s).add(item.id));
-    await fetch(`/api/admin/nav-items/${item.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item),
-    });
-    setSavingIds((s) => {
-      const n = new Set(s);
-      n.delete(item.id);
-      return n;
-    });
-    router.refresh();
+    try {
+      await fetch(`/api/admin/nav-items/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+    } finally {
+      setSavingIds((s) => {
+        const n = new Set(s);
+        n.delete(item.id);
+        return n;
+      });
+    }
   }
 
   // Wrapper kept for callers that already had the latest item in state
@@ -81,9 +89,13 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
 
   async function deleteItem(id: string) {
     if (!confirm('Delete this nav item?')) return;
-    await fetch(`/api/admin/nav-items/${id}`, { method: 'DELETE' });
+    // Optimistic — remove from local state immediately, fire DELETE in background.
     setItems((prev) => prev.filter((it) => it.id !== id));
-    router.refresh();
+    try {
+      await fetch(`/api/admin/nav-items/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('[nav] delete failed:', err);
+    }
   }
 
   async function addItem(location: Location) {
@@ -97,13 +109,15 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
         url: '#',
         sort_order: max + 1,
         is_cta: false,
+        new_tab: false,
         active: true,
       }),
     });
     if (res.ok) {
       const json = await res.json();
+      // Optimistic — append to local state. The server already revalidated
+      // public paths in the POST handler so public-facing nav is fresh.
       setItems((prev) => [...prev, json.item]);
-      router.refresh();
     }
   }
 
@@ -136,7 +150,7 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
                 className="admin-grid-rowstack"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '1fr 1.5fr auto auto auto auto auto',
+                  gridTemplateColumns: '1fr 1.5fr auto auto auto auto auto auto',
                   gap: 8,
                   alignItems: 'center',
                   padding: 8,
@@ -176,8 +190,24 @@ export function NavigationClient({ initialItems }: { initialItems: NavItem[] }) 
                   </label>
                 )}
                 {!section.allowCta && <span />}
-                <button onClick={() => move(it.id, section.key, -1)} disabled={idx === 0 || isSaving} style={miniBtn}>↑</button>
-                <button onClick={() => move(it.id, section.key, 1)} disabled={idx === groups[section.key].length - 1 || isSaving} style={miniBtn}>↓</button>
+                <label
+                  title="Open this link in a new tab"
+                  style={{ fontSize: 12, color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px', whiteSpace: 'nowrap' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!it.new_tab}
+                    onChange={(e) => {
+                      // Same explicit-value pattern as the CTA checkbox above.
+                      const updated = { ...it, new_tab: e.target.checked };
+                      setItems((prev) => prev.map((x) => (x.id === it.id ? updated : x)));
+                      persistItem(updated);
+                    }}
+                  />
+                  New tab
+                </label>
+                <button onClick={() => move(it.id, section.key, -1)} disabled={idx === 0} style={miniBtn}>↑</button>
+                <button onClick={() => move(it.id, section.key, 1)} disabled={idx === groups[section.key].length - 1} style={miniBtn}>↓</button>
                 <button onClick={() => deleteItem(it.id)} style={{ ...miniBtn, color: '#ff6b6b' }}>×</button>
                 <span
                   aria-live="polite"

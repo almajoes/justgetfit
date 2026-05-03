@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       label: body.label,
       url: body.url,
       is_cta: !!body.is_cta,
+      new_tab: !!body.new_tab,
       sort_order: body.sort_order ?? 0,
       active: body.active !== false,
     })

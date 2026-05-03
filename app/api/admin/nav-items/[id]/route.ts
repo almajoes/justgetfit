@@ -29,6 +29,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       label: body.label,
       url: body.url,
       is_cta: !!body.is_cta,
+      new_tab: !!body.new_tab,
       sort_order: body.sort_order,
       active: body.active !== false,
     })
