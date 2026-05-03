@@ -11,7 +11,7 @@ import type { Post } from '@/lib/supabase';
 
 export const revalidate = 0;
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 16;
 
 export async function generateMetadata({ params }: { params: { category: string } }) {
   const cat = await getCategoryBySlug(params.category);

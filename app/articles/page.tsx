@@ -11,7 +11,7 @@ import { getCategories } from '@/lib/cms';
 export const revalidate = 0;
 export const metadata = { title: 'Articles' };
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 16;
 
 async function getCategoryCounts() {
   const { data } = await supabase.from('posts').select('category');
