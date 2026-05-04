@@ -6,13 +6,14 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_SLUGS = ['home-hero', 'about', 'subscribe', 'contact'];
+const ALLOWED_SLUGS = ['home-hero', 'about', 'subscribe', 'contact', 'app'];
 
 const REVALIDATE_PATHS: Record<string, string[]> = {
   'home-hero': ['/'],
   about: ['/about'],
   subscribe: ['/subscribe'],
   contact: ['/contact'],
+  app: ['/app'],
 };
 
 export async function PUT(req: NextRequest, { params }: { params: { slug: string } }) {

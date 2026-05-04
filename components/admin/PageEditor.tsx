@@ -65,6 +65,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
     about: 'About Us',
     subscribe: 'Subscribe',
     contact: 'Contact Us',
+    app: 'App',
   };
 
   return (
@@ -253,6 +254,122 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
             <Field label="Success message (shown after submit)">
               <textarea className="input" rows={2} value={content.success_message || ''} onChange={(e) => update(['success_message'], e.target.value)} />
             </Field>
+          </>
+        )}
+
+        {/* APP specific — manages everything BELOW the hero on /app.
+            The hero/AppCTA at the top of /app stays hardcoded since it's a
+            shared component used on article pages too. */}
+        {slug === 'app' && (
+          <>
+            <div style={{ padding: 12, background: 'rgba(196,255,61,0.06)', borderRadius: 8, border: '1px solid rgba(196,255,61,0.2)', fontSize: 13, color: 'var(--text-2)', marginBottom: 8 }}>
+              <strong style={{ color: 'var(--neon)' }}>Note:</strong> The hero card at the top of /app is the
+              same shared component used on article-end CTAs. To change its copy,
+              edit <code>components/AppCTA.tsx</code>. This editor manages everything below the hero.
+            </div>
+
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 8 }}>How it works section</h3>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+              <Field label="Eyebrow tag">
+                <input className="input" value={content.how_it_works_eyebrow || ''} onChange={(e) => update(['how_it_works_eyebrow'], e.target.value)} />
+              </Field>
+              <Field label="Section heading">
+                <input className="input" value={content.how_it_works_heading || ''} onChange={(e) => update(['how_it_works_heading'], e.target.value)} />
+              </Field>
+            </div>
+            <ArrayEditor
+              title="Steps"
+              items={content.steps || []}
+              onAdd={() => addItem('steps', { title: '', desc: '' })}
+              onRemove={(i) => removeItem('steps', i)}
+              onMove={(i, d) => moveItem('steps', i, d)}
+              renderItem={(item, i) => (
+                <>
+                  <input className="input" placeholder="Step title (e.g. Subscribe to the newsletter)" value={item.title || ''} onChange={(e) => update(['steps', i, 'title'], e.target.value)} style={{ marginBottom: 8 }} />
+                  <textarea className="input" rows={2} placeholder="Description" value={item.desc || ''} onChange={(e) => update(['steps', i, 'desc'], e.target.value)} style={{ marginBottom: 8 }} />
+                  <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <input className="input" placeholder="CTA label (optional)" value={item.cta_label || ''} onChange={(e) => update(['steps', i, 'cta_label'], e.target.value)} />
+                    <input className="input" placeholder="CTA href (e.g. /subscribe)" value={item.cta_href || ''} onChange={(e) => update(['steps', i, 'cta_href'], e.target.value)} />
+                  </div>
+                </>
+              )}
+            />
+
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16 }}>What you get section</h3>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+              <Field label="Eyebrow tag">
+                <input className="input" value={content.features_eyebrow || ''} onChange={(e) => update(['features_eyebrow'], e.target.value)} />
+              </Field>
+              <Field label="Section heading">
+                <input className="input" value={content.features_heading || ''} onChange={(e) => update(['features_heading'], e.target.value)} />
+              </Field>
+            </div>
+            <ArrayEditor
+              title="Features"
+              items={content.features || []}
+              onAdd={() => addItem('features', { icon: '✨', title: '', desc: '' })}
+              onRemove={(i) => removeItem('features', i)}
+              onMove={(i, d) => moveItem('features', i, d)}
+              renderItem={(item, i) => (
+                <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
+                  <input className="input" placeholder="🎯" value={item.icon || ''} onChange={(e) => update(['features', i, 'icon'], e.target.value)} />
+                  <input className="input" placeholder="Title" value={item.title || ''} onChange={(e) => update(['features', i, 'title'], e.target.value)} />
+                  <div />
+                  <textarea className="input" rows={2} placeholder="Description" value={item.desc || ''} onChange={(e) => update(['features', i, 'desc'], e.target.value)} />
+                </div>
+              )}
+            />
+
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16 }}>FAQ section</h3>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+              <Field label="Eyebrow tag">
+                <input className="input" value={content.faq_eyebrow || ''} onChange={(e) => update(['faq_eyebrow'], e.target.value)} />
+              </Field>
+              <Field label="Section heading">
+                <input className="input" value={content.faq_heading || ''} onChange={(e) => update(['faq_heading'], e.target.value)} />
+              </Field>
+            </div>
+            <ArrayEditor
+              title="FAQ entries"
+              items={content.faqs || []}
+              onAdd={() => addItem('faqs', { q: '', a: '' })}
+              onRemove={(i) => removeItem('faqs', i)}
+              onMove={(i, d) => moveItem('faqs', i, d)}
+              renderItem={(item, i) => (
+                <>
+                  <input className="input" placeholder="Question" value={item.q || ''} onChange={(e) => update(['faqs', i, 'q'], e.target.value)} style={{ marginBottom: 8 }} />
+                  <textarea className="input" rows={3} placeholder="Answer (Markdown supported — links like [text](/path) work)" value={item.a || ''} onChange={(e) => update(['faqs', i, 'a'], e.target.value)} />
+                </>
+              )}
+            />
+
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16 }}>Bottom CTA section</h3>
+            <Field label="Heading">
+              <input className="input" value={content.bottom_cta_heading || ''} onChange={(e) => update(['bottom_cta_heading'], e.target.value)} />
+            </Field>
+            <Field label="Subhead paragraph">
+              <textarea className="input" rows={2} value={content.bottom_cta_subhead || ''} onChange={(e) => update(['bottom_cta_subhead'], e.target.value)} />
+            </Field>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text-2)' }}>Primary button</h4>
+                <Field label="Label">
+                  <input className="input" value={content.bottom_cta_primary_label || ''} onChange={(e) => update(['bottom_cta_primary_label'], e.target.value)} />
+                </Field>
+                <Field label="Href (URL)">
+                  <input className="input" value={content.bottom_cta_primary_href || ''} onChange={(e) => update(['bottom_cta_primary_href'], e.target.value)} />
+                </Field>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text-2)' }}>Secondary button</h4>
+                <Field label="Label">
+                  <input className="input" value={content.bottom_cta_secondary_label || ''} onChange={(e) => update(['bottom_cta_secondary_label'], e.target.value)} />
+                </Field>
+                <Field label="Href (URL)">
+                  <input className="input" value={content.bottom_cta_secondary_href || ''} onChange={(e) => update(['bottom_cta_secondary_href'], e.target.value)} />
+                </Field>
+              </div>
+            </div>
           </>
         )}
       </div>

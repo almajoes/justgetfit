@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
-const ALLOWED = ['home-hero', 'about', 'subscribe', 'contact'] as const;
+const ALLOWED = ['home-hero', 'about', 'subscribe', 'contact', 'app'] as const;
 
 export default async function AdminPageEditor({ params }: { params: { slug: string } }) {
   if (!ALLOWED.includes(params.slug as (typeof ALLOWED)[number])) notFound();

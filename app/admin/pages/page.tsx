@@ -7,6 +7,7 @@ const PAGES = [
   { slug: 'about', name: 'About Us', desc: 'Headline, tagline, body content, pillar cards, CTAs.' },
   { slug: 'subscribe', name: 'Subscribe', desc: 'Headline, lede, promise cards, FAQ entries.' },
   { slug: 'contact', name: 'Contact Us', desc: 'Headline, intro, form labels, success message.' },
+  { slug: 'app', name: 'App', desc: 'How-it-works steps, feature deep-dive, FAQ, bottom CTA. (Hero is hardcoded.)' },
 ];
 
 export default function PagesIndex() {

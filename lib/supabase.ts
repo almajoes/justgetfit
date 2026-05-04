@@ -202,5 +202,30 @@ export type ContactPage = {
   success_message: string;
 };
 
-export type PageSlug = 'home-hero' | 'about' | 'subscribe' | 'contact';
-export type PageContent = HomeHeroPage | AboutPage | SubscribePage | ContactPage;
+export type AppPage = {
+  // The "How it works" section
+  how_it_works_eyebrow: string;
+  how_it_works_heading: string;
+  steps: { title: string; desc: string; cta_label?: string; cta_href?: string }[];
+
+  // The "What you get" section
+  features_eyebrow: string;
+  features_heading: string;
+  features: { icon: string; title: string; desc: string }[];
+
+  // FAQ section
+  faq_eyebrow: string;
+  faq_heading: string;
+  faqs: { q: string; a: string }[];
+
+  // Bottom CTA section
+  bottom_cta_heading: string;
+  bottom_cta_subhead: string;
+  bottom_cta_primary_label: string;
+  bottom_cta_primary_href: string;
+  bottom_cta_secondary_label: string;
+  bottom_cta_secondary_href: string;
+};
+
+export type PageSlug = 'home-hero' | 'about' | 'subscribe' | 'contact' | 'app';
+export type PageContent = HomeHeroPage | AboutPage | SubscribePage | ContactPage | AppPage;

@@ -6,6 +6,7 @@ import type {
   AboutPage,
   SubscribePage,
   ContactPage,
+  AppPage,
   NavItem,
   Partner,
   Category,
@@ -125,10 +126,95 @@ const CONTACT_DEFAULT: ContactPage = {
   success_message: 'Got it.',
 };
 
+/**
+ * Default content for the /app marketing landing page.
+ *
+ * Seeds the CMS with the same content that was originally hardcoded in
+ * app/app/page.tsx (May 3 2026). On first load after the migration, /app will
+ * render exactly as before — admin edits via /admin/pages/app override it.
+ *
+ * The hero/AppCTA at the top of /app stays hardcoded — it's a shared
+ * component used on article pages too. Only the sections BELOW the hero are
+ * managed here.
+ */
+const APP_DEFAULT: AppPage = {
+  how_it_works_eyebrow: 'How it works',
+  how_it_works_heading: 'Three steps from inbox to action.',
+  steps: [
+    {
+      title: 'Subscribe to the newsletter',
+      desc: "The app uses your subscriber email to grant access. If you're already a subscriber, you're set — just sign in with the same email.",
+      cta_label: 'Subscribe free →',
+      cta_href: '/subscribe',
+    },
+    {
+      title: 'Open the app',
+      desc: "Visit app.justgetfit.org and sign in with the email you subscribed with. You'll be in immediately.",
+    },
+    {
+      title: 'Tell it about you',
+      desc: 'A short onboarding asks about your goals, current activity, and food preferences. Then it builds your plan.',
+    },
+  ],
+
+  features_eyebrow: 'What you get',
+  features_heading: 'Three tools, one app, zero cost.',
+  features: [
+    {
+      icon: '📊',
+      title: 'Fitness tracker',
+      desc: "Log workouts as you do them. See trends in volume, frequency, and progress over weeks and months. Spot when you're plateauing before it costs you.",
+    },
+    {
+      icon: '💪',
+      title: 'Personalized workout routines',
+      desc: 'Built around your goals (strength, hypertrophy, conditioning, mobility) and adjusted to your current level. The app generates routines you can actually follow, not generic templates.',
+    },
+    {
+      icon: '🥗',
+      title: 'Meal plans',
+      desc: 'AI-generated meal suggestions based on your dietary preferences, restrictions, and goals. Skip the meal-planning paralysis — get options that fit how you actually eat.',
+    },
+  ],
+
+  faq_eyebrow: 'FAQ',
+  faq_heading: 'Quick answers.',
+  faqs: [
+    {
+      q: 'Is it really free?',
+      a: "Yes. If you're a confirmed Just Get Fit newsletter subscriber, you have full access to the app at no cost. No payment info required, no hidden tiers.",
+    },
+    {
+      q: "What if I'm not a subscriber yet?",
+      a: "No problem — [subscribe free](/subscribe) with the email you'd use for the app. Once you confirm, you can sign in.",
+    },
+    {
+      q: 'Do I need to install anything?',
+      a: 'No. The app runs in your browser at app.justgetfit.org. Works on phone, tablet, or desktop.',
+    },
+    {
+      q: 'Can I use it without sharing my data?',
+      a: "We only collect what's needed to personalize your plan (goals, preferences, workout logs). Read our [privacy policy](/privacy) for the full breakdown.",
+    },
+    {
+      q: 'What if I want to delete my account?',
+      a: "Email us via the [contact form](/contact) and we'll remove your account and all associated data.",
+    },
+  ],
+
+  bottom_cta_heading: 'Ready to get started?',
+  bottom_cta_subhead: "Open the app with the email you used to subscribe to the newsletter, or join the list first if you haven't already.",
+  bottom_cta_primary_label: 'Open the app →',
+  bottom_cta_primary_href: 'https://app.justgetfit.org',
+  bottom_cta_secondary_label: 'Subscribe to the newsletter',
+  bottom_cta_secondary_href: '/subscribe',
+};
+
 export const getHomeHero = () => getPage('home-hero', HOME_HERO_DEFAULT);
 export const getAboutPage = () => getPage('about', ABOUT_DEFAULT);
 export const getSubscribePage = () => getPage('subscribe', SUBSCRIBE_DEFAULT);
 export const getContactPage = () => getPage('contact', CONTACT_DEFAULT);
+export const getAppPage = () => getPage('app', APP_DEFAULT);
 
 // -----------------------------------------------------
 // NAV ITEMS

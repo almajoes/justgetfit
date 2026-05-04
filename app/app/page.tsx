@@ -1,9 +1,14 @@
 import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { AppCTA } from '@/components/AppCTA';
+import { getAppPage } from '@/lib/cms';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-// Refresh hourly — content is static-ish and we want SEO-cacheable HTML.
+// Refresh hourly — content is admin-edited via /admin/pages/app and the
+// admin save flow calls revalidatePath('/app') so changes also propagate
+// immediately on save without waiting for the hour.
 export const revalidate = 3600;
 
 export const metadata = {
@@ -30,231 +35,132 @@ export const metadata = {
  *   - Single source of truth: future blog content can link to /app and we
  *     control the messaging here.
  *
- * The actual app sign-in / sign-up flow lives on app.justgetfit.org. This
- * page is purely promotional + provides a clear entry point.
+ * Content management: the hero/AppCTA at the top is hardcoded (shared with
+ * article-end CTAs — see components/AppCTA.tsx). Everything below the hero
+ * is CMS-managed via /admin/pages/app and pulled from the `pages` table by
+ * `getAppPage()`.
  */
 export default async function AppLandingPage() {
+  const page = await getAppPage();
+
   return (
     <>
       <SiteNav />
       <main style={{ maxWidth: 920, margin: '0 auto', padding: '64px 24px 96px' }}>
-        {/* Hero — uses the AppCTA "hero" variant for the centerpiece */}
+        {/* Hero — uses the AppCTA "hero" variant for the centerpiece.
+            Hardcoded since AppCTA is shared with article-end CTAs. */}
         <AppCTA variant="hero" />
 
         {/* How it works — three short steps */}
-        <section style={{ marginTop: 80 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'var(--text-3)',
-              marginBottom: 12,
-            }}
-          >
-            How it works
-          </div>
-          <h2
-            style={{
-              fontSize: 28,
-              fontWeight: 800,
-              letterSpacing: '-0.02em',
-              margin: 0,
-              marginBottom: 40,
-              color: 'var(--text)',
-            }}
-          >
-            Three steps from inbox to action.
-          </h2>
+        {page.steps && page.steps.length > 0 && (
+          <section style={{ marginTop: 80 }}>
+            <Eyebrow>{page.how_it_works_eyebrow}</Eyebrow>
+            <SectionHeading>{page.how_it_works_heading}</SectionHeading>
 
-          <div
-            className="app-steps"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 24,
-            }}
-          >
-            <Step
-              num="1"
-              title="Subscribe to the newsletter"
-              desc="The app uses your subscriber email to grant access. If you're already a subscriber, you're set — just sign in with the same email."
-              cta={{ href: '/subscribe', label: 'Subscribe free →' }}
-            />
-            <Step
-              num="2"
-              title="Open the app"
-              desc="Visit app.justgetfit.org and sign in with the email you subscribed with. You'll be in immediately."
-            />
-            <Step
-              num="3"
-              title="Tell it about you"
-              desc="A short onboarding asks about your goals, current activity, and food preferences. Then it builds your plan."
-            />
-          </div>
-        </section>
+            <div
+              className="app-steps"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${Math.min(page.steps.length, 3)}, 1fr)`,
+                gap: 24,
+              }}
+            >
+              {page.steps.map((step, i) => (
+                <Step
+                  key={i}
+                  num={String(i + 1)}
+                  title={step.title}
+                  desc={step.desc}
+                  cta={step.cta_label && step.cta_href ? { href: step.cta_href, label: step.cta_label } : undefined}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* What you get — feature deep-dive */}
-        <section style={{ marginTop: 80 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'var(--text-3)',
-              marginBottom: 12,
-            }}
-          >
-            What you get
-          </div>
-          <h2
-            style={{
-              fontSize: 28,
-              fontWeight: 800,
-              letterSpacing: '-0.02em',
-              margin: 0,
-              marginBottom: 40,
-              color: 'var(--text)',
-            }}
-          >
-            Three tools, one app, zero cost.
-          </h2>
+        {page.features && page.features.length > 0 && (
+          <section style={{ marginTop: 80 }}>
+            <Eyebrow>{page.features_eyebrow}</Eyebrow>
+            <SectionHeading>{page.features_heading}</SectionHeading>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <FeatureRow
-              icon="📊"
-              title="Fitness tracker"
-              desc="Log workouts as you do them. See trends in volume, frequency, and progress over weeks and months. Spot when you're plateauing before it costs you."
-            />
-            <FeatureRow
-              icon="💪"
-              title="Personalized workout routines"
-              desc="Built around your goals (strength, hypertrophy, conditioning, mobility) and adjusted to your current level. The app generates routines you can actually follow, not generic templates."
-            />
-            <FeatureRow
-              icon="🥗"
-              title="Meal plans"
-              desc="AI-generated meal suggestions based on your dietary preferences, restrictions, and goals. Skip the meal-planning paralysis — get options that fit how you actually eat."
-            />
-          </div>
-        </section>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {page.features.map((f, i) => (
+                <FeatureRow key={i} icon={f.icon} title={f.title} desc={f.desc} />
+              ))}
+            </div>
+          </section>
+        )}
 
-        {/* FAQ — pre-empt the questions */}
-        <section style={{ marginTop: 80 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'var(--text-3)',
-              marginBottom: 12,
-            }}
-          >
-            FAQ
-          </div>
-          <h2
-            style={{
-              fontSize: 28,
-              fontWeight: 800,
-              letterSpacing: '-0.02em',
-              margin: 0,
-              marginBottom: 32,
-              color: 'var(--text)',
-            }}
-          >
-            Quick answers.
-          </h2>
+        {/* FAQ */}
+        {page.faqs && page.faqs.length > 0 && (
+          <section style={{ marginTop: 80 }}>
+            <Eyebrow>{page.faq_eyebrow}</Eyebrow>
+            <SectionHeading style={{ marginBottom: 32 }}>{page.faq_heading}</SectionHeading>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <FAQ
-              q="Is it really free?"
-              a="Yes. If you're a confirmed Just Get Fit newsletter subscriber, you have full access to the app at no cost. No payment info required, no hidden tiers."
-            />
-            <FAQ
-              q="What if I'm not a subscriber yet?"
-              a={
-                <>
-                  No problem — <Link href="/subscribe" style={{ color: 'var(--neon)' }}>subscribe free</Link>{' '}
-                  with the email you'd use for the app. Once you confirm, you can sign in.
-                </>
-              }
-            />
-            <FAQ
-              q="Do I need to install anything?"
-              a="No. The app runs in your browser at app.justgetfit.org. Works on phone, tablet, or desktop."
-            />
-            <FAQ
-              q="Can I use it without sharing my data?"
-              a={
-                <>
-                  We only collect what's needed to personalize your plan (goals, preferences, workout
-                  logs). Read our <Link href="/privacy" style={{ color: 'var(--neon)' }}>privacy policy</Link> for the full breakdown.
-                </>
-              }
-            />
-            <FAQ
-              q="What if I want to delete my account?"
-              a={
-                <>
-                  Email us via the <Link href="/contact" style={{ color: 'var(--neon)' }}>contact form</Link> and
-                  we'll remove your account and all associated data.
-                </>
-              }
-            />
-          </div>
-        </section>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {page.faqs.map((f, i) => (
+                <FAQ key={i} q={f.q} a={f.a} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Bottom CTA — second chance for readers who scrolled the whole page */}
-        <section style={{ marginTop: 80, textAlign: 'center' }}>
-          <h2
-            style={{
-              fontSize: 32,
-              fontWeight: 800,
-              letterSpacing: '-0.02em',
-              margin: 0,
-              marginBottom: 16,
-              color: 'var(--text)',
-            }}
-          >
-            Ready to get started?
-          </h2>
-          <p
-            style={{
-              fontSize: 16,
-              color: 'var(--text-2)',
-              lineHeight: 1.6,
-              margin: 0,
-              marginBottom: 28,
-              maxWidth: 540,
-              marginLeft: 'auto',
-              marginRight: 'auto',
-            }}
-          >
-            Open the app with the email you used to subscribe to the newsletter, or join the
-            list first if you haven't already.
-          </p>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link
-              href="https://app.justgetfit.org"
-              target="_blank"
-              rel="noopener"
-              className="btn btn-primary"
-              style={{ fontSize: 15, padding: '12px 28px' }}
+        {(page.bottom_cta_heading || page.bottom_cta_primary_label) && (
+          <section style={{ marginTop: 80, textAlign: 'center' }}>
+            <h2
+              style={{
+                fontSize: 32,
+                fontWeight: 800,
+                letterSpacing: '-0.02em',
+                margin: 0,
+                marginBottom: 16,
+                color: 'var(--text)',
+              }}
             >
-              Open the app →
-            </Link>
-            <Link href="/subscribe" className="btn btn-ghost" style={{ fontSize: 15, padding: '12px 28px' }}>
-              Subscribe to the newsletter
-            </Link>
-          </div>
-        </section>
+              {page.bottom_cta_heading}
+            </h2>
+            <p
+              style={{
+                fontSize: 16,
+                color: 'var(--text-2)',
+                lineHeight: 1.6,
+                margin: 0,
+                marginBottom: 28,
+                maxWidth: 540,
+                marginLeft: 'auto',
+                marginRight: 'auto',
+              }}
+            >
+              {page.bottom_cta_subhead}
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {page.bottom_cta_primary_label && (
+                <SmartLink
+                  href={page.bottom_cta_primary_href || '#'}
+                  className="btn btn-primary"
+                  style={{ fontSize: 15, padding: '12px 28px' }}
+                >
+                  {page.bottom_cta_primary_label}
+                </SmartLink>
+              )}
+              {page.bottom_cta_secondary_label && (
+                <SmartLink
+                  href={page.bottom_cta_secondary_href || '#'}
+                  className="btn btn-ghost"
+                  style={{ fontSize: 15, padding: '12px 28px' }}
+                >
+                  {page.bottom_cta_secondary_label}
+                </SmartLink>
+              )}
+            </div>
+          </section>
+        )}
       </main>
       <SiteFooter />
 
-      {/* Mobile: stack the 3-column "How it works" steps */}
+      {/* Mobile: stack the multi-column "How it works" steps */}
       <style>{`
         @media (max-width: 640px) {
           .app-steps {
@@ -267,6 +173,41 @@ export default async function AppLandingPage() {
 }
 
 // ─── Subcomponents ────────────────────────────────────────────────────
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: 'var(--text-3)',
+        marginBottom: 12,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SectionHeading({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <h2
+      style={{
+        fontSize: 28,
+        fontWeight: 800,
+        letterSpacing: '-0.02em',
+        margin: 0,
+        marginBottom: 40,
+        color: 'var(--text)',
+        ...style,
+      }}
+    >
+      {children}
+    </h2>
+  );
+}
 
 function Step({ num, title, desc, cta }: { num: string; title: string; desc: string; cta?: { href: string; label: string } }) {
   return (
@@ -300,7 +241,7 @@ function Step({ num, title, desc, cta }: { num: string; title: string; desc: str
       </h3>
       <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.6, margin: 0 }}>{desc}</p>
       {cta && (
-        <Link
+        <SmartLink
           href={cta.href}
           style={{
             display: 'inline-block',
@@ -312,7 +253,7 @@ function Step({ num, title, desc, cta }: { num: string; title: string; desc: str
           }}
         >
           {cta.label}
-        </Link>
+        </SmartLink>
       )}
     </div>
   );
@@ -346,9 +287,10 @@ function FeatureRow({ icon, title, desc }: { icon: string; title: string; desc: 
   );
 }
 
-function FAQ({ q, a }: { q: string; a: React.ReactNode }) {
+function FAQ({ q, a }: { q: string; a: string }) {
   return (
     <div
+      className="app-faq"
       style={{
         background: 'var(--bg-1)',
         border: '1px solid var(--line)',
@@ -356,12 +298,49 @@ function FAQ({ q, a }: { q: string; a: React.ReactNode }) {
         padding: 20,
       }}
     >
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>
-        {q}
-      </div>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>{q}</div>
       <div style={{ fontSize: 15, color: 'var(--text-2)', lineHeight: 1.6 }}>
-        {a}
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ href, children }) => <SmartLink href={href || '#'} style={{ color: 'var(--neon)' }}>{children}</SmartLink>,
+            p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>,
+          }}
+        >
+          {a}
+        </ReactMarkdown>
       </div>
     </div>
+  );
+}
+
+/**
+ * SmartLink — picks <a target="_blank"> for absolute (http/https) URLs and
+ * Next.js <Link> for internal paths. CMS authors don't need to think about
+ * this; they just paste a URL or path.
+ */
+function SmartLink({
+  href,
+  children,
+  className,
+  style,
+}: {
+  href: string;
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const isExternal = /^https?:\/\//i.test(href);
+  if (isExternal) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={className} style={style}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} className={className} style={style}>
+      {children}
+    </Link>
   );
 }
