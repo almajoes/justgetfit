@@ -676,7 +676,11 @@ h1.hero-h, .hero-h {
   color: var(--text-2);
   font-style: italic;
 }
-.about-body a {
+/* Plain inline links inside article/page bodies — exclude buttons (.btn) so
+   they keep their button styling. Without this exclusion, buttons rendered
+   as anchors inside .about-body inherit neon text color, which makes the
+   text invisible on the neon-background primary button. */
+.about-body a:not(.btn) {
   color: var(--neon);
   text-decoration: underline;
   text-underline-offset: 3px;
