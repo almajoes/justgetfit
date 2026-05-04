@@ -942,9 +942,12 @@ select option {
 .admin-bottom-tab { display: none; }
 
 /* TopList rows on the analytics page — each row is its own horizontal
-   scroll container. Long URLs become swipe-to-see, mirroring the
-   admin-table-scroll pattern used on the subscribers table.
-   Hide the scrollbar visually since it'd be ugly per-row. */
+   scroll container, mirroring how .admin-table-scroll works on the
+   subscribers table:
+     - outer row wrapper: overflow-x: auto
+     - inner content: min-width: max-content (forces width past wrapper)
+   When the inner content (label + count) exceeds the row's available
+   width, the row becomes scrollable. Hide the scrollbar so it stays clean. */
 .admin-toplist-row {
   scrollbar-width: none;
 }
