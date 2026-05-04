@@ -125,6 +125,10 @@ async function resolveRecipientIds(
   const PAGE = 1000;
   const out: string[] = [];
 
+  // 7-day throttle: exclude subs who received a newsletter in past 7 days.
+  // Prevents over-mailing during multi-publish weeks. Broadcasts skip this.
+  const throttleCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
   if (mode === 'list' && suppliedIds) {
     const ids = suppliedIds.filter((id): id is string => typeof id === 'string');
     if (ids.length === 0) return [];
@@ -135,6 +139,7 @@ async function resolveRecipientIds(
         .from('subscribers')
         .select('id')
         .eq('status', 'confirmed')
+        .or(`last_sent_at.is.null,last_sent_at.lt.${throttleCutoff}`)
         .in('id', chunk);
       if (error) {
         console.error('[newsletter/send] recipient lookup failed:', error.message);
@@ -152,6 +157,8 @@ async function resolveRecipientIds(
       .from('subscribers')
       .select('id')
       .eq('status', 'confirmed')
+      .or(`last_sent_at.is.null,last_sent_at.lt.${throttleCutoff}`)
+      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) {
       console.error('[newsletter/send] recipient lookup failed:', error.message);

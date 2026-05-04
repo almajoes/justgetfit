@@ -156,6 +156,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
  * mode='all': page through all confirmed subscribers
  * mode='list': intersect the supplied IDs with confirmed-status subscribers
  *              (chunks the .in() query to keep URLs under ~8KB)
+ *
+ * THROTTLE: subscribers who received a newsletter in the past 7 days are
+ * excluded. Prevents over-mailing during multi-publish weeks (which would
+ * tank sender reputation and trigger spam complaints). Broadcasts use a
+ * separate code path and are NOT throttled — that's intentional.
  */
 async function resolveRecipientIds(
   mode: 'all' | 'list',
@@ -163,6 +168,10 @@ async function resolveRecipientIds(
 ): Promise<string[]> {
   const PAGE = 1000;
   const out: string[] = [];
+
+  // 7-day cutoff for the throttle filter. Subscribers with last_sent_at
+  // newer than this are excluded from newsletter audiences.
+  const throttleCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   if (mode === 'list' && suppliedIds) {
     const ids = suppliedIds.filter((id): id is string => typeof id === 'string');
@@ -174,6 +183,9 @@ async function resolveRecipientIds(
         .from('subscribers')
         .select('id')
         .eq('status', 'confirmed')
+        // Throttle: exclude anyone who received a newsletter in past 7 days.
+        // .or() with `last_sent_at.is.null` includes never-mailed subscribers.
+        .or(`last_sent_at.is.null,last_sent_at.lt.${throttleCutoff}`)
         .in('id', chunk);
       if (error) {
         console.error('[publish] recipient lookup failed:', error.message);
@@ -191,6 +203,8 @@ async function resolveRecipientIds(
       .from('subscribers')
       .select('id')
       .eq('status', 'confirmed')
+      .or(`last_sent_at.is.null,last_sent_at.lt.${throttleCutoff}`)
+      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) {
       console.error('[publish] recipient lookup failed:', error.message);

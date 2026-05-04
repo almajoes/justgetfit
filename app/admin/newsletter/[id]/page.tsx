@@ -214,7 +214,7 @@ export default async function SendDetailPage({ params }: { params: { id: string 
       >
         <Stat label="Intended" value={intended.toLocaleString()} />
         <Stat
-          label="Sent"
+          label="Actual"
           value={sentCount.toLocaleString()}
           accent={sentCount < intended ? '#ff9b6b' : undefined}
         />
@@ -224,14 +224,14 @@ export default async function SendDetailPage({ params }: { params: { id: string 
           accent={deliveredCount > 0 ? 'var(--neon)' : undefined}
         />
         <Stat
-          label="Not received"
-          value={notReceived.toLocaleString()}
-          accent={notReceived > 0 ? '#ff6b6b' : undefined}
-        />
-        <Stat
           label="Bounced"
           value={`${bouncedCount.toLocaleString()} · ${pct(bouncedCount, sentCount)}`}
           accent={bouncedCount > 0 ? '#ff9b6b' : undefined}
+        />
+        <Stat
+          label="Complaints"
+          value={`${complainedCount.toLocaleString()} · ${pct(complainedCount, deliveredCount)}`}
+          accent={complainedCount > 0 ? '#ff6b6b' : undefined}
         />
         <Stat
           label="Unique opens"
@@ -260,23 +260,14 @@ export default async function SendDetailPage({ params }: { params: { id: string 
           }}
         >
           <strong>Send gap:</strong> {intended.toLocaleString()} subscribers were intended for
-          this send, but Resend only received {sentCount.toLocaleString()} (
-          {(intended - sentCount).toLocaleString()} never sent). This usually means the worker
-          chain broke mid-send. The watchdog cron should now auto-recover stuck jobs going
-          forward.
+          this send, but Resend only accepted {sentCount.toLocaleString()} (
+          {(intended - sentCount).toLocaleString()} never sent). The watchdog cron should
+          auto-recover stuck jobs going forward.
         </div>
       )}
 
-      {/* Complaints stat — separate row only shown if any complaints */}
-      {complainedCount > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <Stat
-            label="Complaints"
-            value={`${complainedCount.toLocaleString()} · ${pct(complainedCount, deliveredCount)}`}
-            accent="#ff6b6b"
-          />
-        </div>
-      )}
+      {/* Standalone Complaints display removed — Complaints is now in the
+          main stat grid above. */}
 
       {/* RE-SEND PANEL — only for kind='post' with an existing post */}
       {canResend && (

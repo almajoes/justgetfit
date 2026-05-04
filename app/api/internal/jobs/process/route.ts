@@ -41,20 +41,28 @@ import {
  *      d. Send each email via Resend, batch-update last_sent_at, record results
  *      e. Continue loop
  *
- * ─── Sizing ──────────────────────────────────────────────────────────
- * Chunk size: 100. Resend allows ~14 sends/sec with batched API. ~7-9s per chunk.
- * Time budget: 80s. Leaves 10s of headroom on the 90s maxDuration for
- *   the final finalizeJob/triggerWorker DB writes.
- * 80s ÷ 9s/chunk ≈ 8 chunks per invocation = 800 subscribers per invocation.
- * Most sends finish in one invocation; large sends chain just once or twice.
+ * ─── Sizing (updated May 4 2026) ─────────────────────────────────────
+ * Chunk size: 100. Pace at 125ms between sends (~8 req/sec, under Resend
+ *   Pro's 10 req/sec limit) → ~12-15s per chunk including Resend latency.
+ * Time budget: 280s. Leaves 20s headroom on the 300s maxDuration (Vercel
+ *   Pro plan max) for finalize/chain calls.
+ * 280s ÷ 13s/chunk ≈ 21 chunks per invocation = 2100 subscribers per
+ *   invocation. 10k-subscriber send chains ~5 times instead of ~100.
+ * Sends under ~2000 finish in a single function invocation, ZERO chain
+ *   handoffs (the previous failure mode).
  */
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 90;
+export const maxDuration = 300;
 
 const CHUNK_SIZE = 100;
-const TIME_BUDGET_MS = 80 * 1000;
+// Time budget: leave 20s headroom under maxDuration for finalize/chain calls.
+// Pacing at 125ms/email + ~5s per 100 (Resend latency) means ~12-15s per chunk.
+// 280s budget ÷ 13s/chunk ≈ 21 chunks per invocation = 2100 subscribers max
+// before chaining. For 10k subscribers, that's ~5 chain handoffs instead of
+// the previous ~100.
+const TIME_BUDGET_MS = 280 * 1000;
 
 export async function POST(req: NextRequest) {
   // ─── Auth ──────────────────────────────────────────────────────────
@@ -196,11 +204,17 @@ export async function POST(req: NextRequest) {
     const skipped = popResult.ids.length - eligibleSubs.length;
 
     // ─── Send each email ───────────────────────────────────────────
+    // Resend Pro rate limit is 10 requests/second. We pace at ~8/sec to
+    // leave headroom (125ms between calls). The sendWithRetry helper also
+    // retries on 429s with exponential backoff, but pacing here prevents
+    // us from triggering the rate limit in the first place.
     let succeeded = 0;
     let failed = 0;
     const successfulSubIds: string[] = [];
+    const SEND_PACING_MS = 125;
 
-    for (const sub of eligibleSubs) {
+    for (let idx = 0; idx < eligibleSubs.length; idx++) {
+      const sub = eligibleSubs[idx];
       let result: { ok: boolean; error?: string };
 
       if (job.kind === 'newsletter' && post) {
@@ -232,6 +246,11 @@ export async function POST(req: NextRequest) {
       } else {
         failed++;
         console.warn(`[worker] send failed to ${sub.email}: ${result.error}`);
+      }
+
+      // Pace between sends — skip the wait after the last send in chunk
+      if (idx < eligibleSubs.length - 1) {
+        await new Promise((r) => setTimeout(r, SEND_PACING_MS));
       }
     }
 

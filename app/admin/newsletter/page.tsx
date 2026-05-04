@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { TableHeaderTip } from '@/components/admin/TableHeaderTip';
+import { RefreshSendStatsButton } from '@/components/admin/RefreshSendStatsButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -115,8 +116,11 @@ export default async function NewsletterAdminPage() {
   const complaintAccent = complaintPct >= 0.3 ? '#ff6b6b' : complaintPct >= 0.1 ? '#ff9b6b' : 'var(--text)';
 
   return (
-    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1480, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Send log</h1>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>Send log</h1>
+        <RefreshSendStatsButton />
+      </div>
       <p style={{ color: 'var(--text-2)', marginBottom: 32 }}>
         Every email blast — both <strong>post</strong> sends (auto-triggered when you publish an article) and <strong>broadcast</strong> messages (custom emails sent from <Link href="/admin/broadcast" style={{ color: 'var(--neon)' }}>the broadcast composer</Link>).
       </p>

@@ -7,6 +7,81 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
 export const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 // =============================================================================
+// CRITICAL: sendWithRetry — proper error handling + rate-limit retry
+// =============================================================================
+// The Resend SDK's emails.send() does NOT throw on API errors. It returns
+// `{ data, error }` where `error` is non-null on failure. Previously our
+// wrapper functions just `await`ed without inspecting the result, which meant
+// rate-limit errors (429), validation errors, and authentication errors all
+// silently returned `ok: true` to the caller. This caused the May 4 incident
+// where the worker reported "100/100 processed" but Resend only received 45
+// of those calls — the other 55 were rate-limited and silently dropped.
+//
+// This helper:
+//   1. Inspects the response and treats `error` as failure
+//   2. Retries on rate-limit errors with exponential backoff (Resend free tier
+//      limit is 2 req/sec; we observe transient 429s under load even on Pro)
+//   3. Returns a real ok/error result that the worker can act on
+//
+// Pacing: caller should still rate-limit themselves to ~10 req/sec. This
+// retry handles bursts and brief spikes; sustained over-rate would cause
+// retries to also fail.
+type SendResult = { ok: true } | { ok: false; error: string };
+
+async function sendWithRetry(
+  payload: Parameters<NonNullable<typeof resend>['emails']['send']>[0],
+  maxRetries = 3
+): Promise<SendResult> {
+  if (!resend) return { ok: false, error: 'RESEND_API_KEY not configured' };
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await resend.emails.send(payload);
+      // Resend SDK returns { data, error }. Both fields are present on the
+      // response object; `error` is non-null on API failure.
+      if (response && 'error' in response && response.error) {
+        const errName = (response.error as { name?: string }).name || '';
+        const errMessage = (response.error as { message?: string }).message || JSON.stringify(response.error);
+
+        // Rate-limit errors: backoff and retry
+        const isRateLimit =
+          errName === 'rate_limit_exceeded' ||
+          errMessage.toLowerCase().includes('rate limit') ||
+          errMessage.toLowerCase().includes('too many requests');
+
+        if (isRateLimit && attempt < maxRetries) {
+          // Exponential backoff: 500ms, 1s, 2s
+          const delay = 500 * Math.pow(2, attempt);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+
+        return { ok: false, error: `${errName || 'resend_error'}: ${errMessage}` };
+      }
+      // Success — Resend returned data, no error
+      return { ok: true };
+    } catch (err) {
+      // Network errors etc. — retry network issues; bail on others
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      const isTransient =
+        msg.toLowerCase().includes('econnreset') ||
+        msg.toLowerCase().includes('etimedout') ||
+        msg.toLowerCase().includes('fetch failed') ||
+        msg.toLowerCase().includes('network');
+
+      if (isTransient && attempt < maxRetries) {
+        const delay = 500 * Math.pow(2, attempt);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      return { ok: false, error: msg };
+    }
+  }
+  return { ok: false, error: 'Exhausted retries' };
+}
+
+
+// =============================================================================
 // BRAND COLORS — kept in sync with app/globals.css CSS variables
 // =============================================================================
 const BRAND = {
@@ -255,18 +330,13 @@ If you didn't sign up for this, just ignore this email — you won't be subscrib
 Just Get Fit — Stronger. Every day.
 ${siteUrl}`;
 
-  try {
-    await resend.emails.send({
-      from: fromEmail,
-      to: email,
-      subject: 'Confirm your subscription to Just Get Fit',
-      html,
-      text,
-    });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
-  }
+  return sendWithRetry({
+    from: fromEmail,
+    to: email,
+    subject: 'Confirm your subscription to Just Get Fit',
+    html,
+    text,
+  });
 }
 
 /**
@@ -338,23 +408,18 @@ Unsubscribe in one click: ${unsubUrl}
 Just Get Fit — Stronger. Every day.
 ${siteUrl}`;
 
-  try {
-    await resend.emails.send({
-      from: fromEmail,
-      to: opts.email,
-      subject: opts.postTitle,
-      html,
-      text,
-      headers: {
-        'List-Unsubscribe': `<${unsubUrl}>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-      },
-      tags: opts.sendId ? [{ name: 'send_id', value: opts.sendId }] : undefined,
-    });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
-  }
+  return sendWithRetry({
+    from: fromEmail,
+    to: opts.email,
+    subject: opts.postTitle,
+    html,
+    text,
+    headers: {
+      'List-Unsubscribe': `<${unsubUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+    tags: opts.sendId ? [{ name: 'send_id', value: opts.sendId }] : undefined,
+  });
 }
 
 /**
@@ -403,23 +468,18 @@ Unsubscribe in one click: ${unsubUrl}
 Just Get Fit — Stronger. Every day.
 ${siteUrl}`;
 
-  try {
-    await resend.emails.send({
-      from: fromEmail,
-      to: opts.email,
-      subject: opts.subject,
-      html,
-      text,
-      headers: {
-        'List-Unsubscribe': `<${unsubUrl}>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-      },
-      tags: opts.sendId ? [{ name: 'send_id', value: opts.sendId }] : undefined,
-    });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
-  }
+  return sendWithRetry({
+    from: fromEmail,
+    to: opts.email,
+    subject: opts.subject,
+    html,
+    text,
+    headers: {
+      'List-Unsubscribe': `<${unsubUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+    tags: opts.sendId ? [{ name: 'send_id', value: opts.sendId }] : undefined,
+  });
 }
 
 /**
@@ -483,19 +543,14 @@ ${opts.message}
 Just Get Fit Admin
 ${siteUrl}`;
 
-  try {
-    await resend.emails.send({
-      from: fromEmail,
-      to: opts.toEmail,
-      replyTo: opts.fromEmail,
-      subject: `[Contact] ${opts.subject || 'New message'}`,
-      html,
-      text,
-    });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
-  }
+  return sendWithRetry({
+    from: fromEmail,
+    to: opts.toEmail,
+    replyTo: opts.fromEmail,
+    subject: `[Contact] ${opts.subject || 'New message'}`,
+    html,
+    text,
+  });
 }
 
 /**
@@ -563,16 +618,11 @@ Source: ${opts.source || '(unknown)'}
 View all subscribers: ${siteUrl}/admin/subscribers
 `;
 
-  try {
-    await resend.emails.send({
-      from: fromEmail,
-      to: opts.toEmail,
-      subject: `[New sub] ${opts.subscriberEmail}`,
-      html,
-      text,
-    });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
-  }
+  return sendWithRetry({
+    from: fromEmail,
+    to: opts.toEmail,
+    subject: `[New sub] ${opts.subscriberEmail}`,
+    html,
+    text,
+  });
 }
