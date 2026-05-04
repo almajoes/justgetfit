@@ -63,12 +63,16 @@ export default async function AboutPage() {
               )}
 
               <div style={{ marginTop: 36, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <Link href={page.cta_primary.url} className="btn btn-primary">
-                  {page.cta_primary.label}
-                </Link>
-                <Link href={page.cta_secondary.url} className="btn btn-ghost">
-                  {page.cta_secondary.label}
-                </Link>
+                {page.cta_primary?.label && (
+                  <Link href={page.cta_primary.url || '#'} className="btn btn-primary">
+                    {page.cta_primary.label}
+                  </Link>
+                )}
+                {page.cta_secondary?.label && (
+                  <Link href={page.cta_secondary.url || '#'} className="btn btn-ghost">
+                    {page.cta_secondary.label}
+                  </Link>
+                )}
               </div>
             </div>
           </div>

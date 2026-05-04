@@ -85,9 +85,6 @@ export function MobileMenuToggle({ links }: { links: NavLink[] }) {
 
         <nav className="mobile-menu-nav">
           <ul>
-            <li>
-              <Link href="/" onClick={() => setOpen(false)}>Home</Link>
-            </li>
             {regularLinks.map((l) => (
               <li key={l.id}>
                 {l.new_tab ? (
