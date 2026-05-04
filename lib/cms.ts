@@ -67,6 +67,23 @@ export const getSiteCode = () => getSetting('site_code', SITE_CODE_DEFAULTS);
 // -----------------------------------------------------
 // PAGES (structured content)
 // -----------------------------------------------------
+/**
+ * Fetch a CMS page. Returns stored content deep-merged over the fallback —
+ * so missing fields in the DB row (e.g. fields added in later migrations
+ * that didn't update existing rows) fall back to defaults automatically.
+ *
+ * Why deep-merge: when we add new fields to a page type (e.g. cta_eyebrow
+ * on AppPage), existing DB rows don't have them. Without merge, `data.content`
+ * has missing fields = `undefined`, and the page renders empty for those
+ * fields. With merge, missing fields fall back to the default value —
+ * defensive against schema additions over time.
+ *
+ * Arrays are NOT merged (replaced). Objects ARE merged recursively. This
+ * matches CMS expectations: if the admin set `features: []`, that's an
+ * intentional empty list, not a request to fall back to default features.
+ * But if `features` is `undefined` (the field doesn't exist at all), we
+ * fall back.
+ */
 export async function getPage<T>(slug: string, fallback: T): Promise<T> {
   const { data, error } = await supabase
     .from('pages')
@@ -74,7 +91,35 @@ export async function getPage<T>(slug: string, fallback: T): Promise<T> {
     .eq('slug', slug)
     .maybeSingle();
   if (error || !data) return fallback;
-  return data.content as T;
+  return deepMerge(fallback, data.content) as T;
+}
+
+/**
+ * Deep-merge override into base. Arrays are replaced (not merged).
+ * Plain objects are merged key-by-key. Primitive overrides win.
+ *
+ * `undefined` values in override are skipped (use base). `null` is treated
+ * as an explicit value — admins may want to clear a field with null.
+ */
+function deepMerge<T>(base: T, override: any): T {
+  if (override === undefined) return base;
+  if (override === null) return override as T;
+  if (Array.isArray(base) || Array.isArray(override)) {
+    // Arrays are replaced wholesale — admin's edit is the source of truth
+    return (override !== undefined ? override : base) as T;
+  }
+  if (
+    base !== null &&
+    typeof base === 'object' &&
+    typeof override === 'object'
+  ) {
+    const result: any = { ...base };
+    for (const key of Object.keys(override)) {
+      result[key] = deepMerge((base as any)[key], override[key]);
+    }
+    return result;
+  }
+  return override as T;
 }
 
 export const HOME_HERO_DEFAULT: HomeHeroPage = {

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getMainNav, getSiteSettings } from '@/lib/cms';
 import { MobileMenuToggle } from './MobileMenuToggle';
+import { SearchTrigger } from './SearchTrigger';
 
 export async function SiteNav() {
   const [navItems, site] = await Promise.all([getMainNav(), getSiteSettings()]);
@@ -28,6 +29,10 @@ export async function SiteNav() {
               )}
             </li>
           ))}
+          {/* Search trigger — sits next to the regular links, before the CTA. */}
+          <li className="nav-search-item">
+            <SearchTrigger />
+          </li>
           {ctaLink && (
             <li>
               {ctaLink.new_tab ? (
@@ -43,8 +48,14 @@ export async function SiteNav() {
           )}
         </ul>
 
-        {/* Mobile: Subscribe button alongside hamburger */}
+        {/* Mobile: search + Subscribe button alongside hamburger */}
         <div className="nav-mobile-actions">
+          {/* Mobile search trigger — same component, different placement.
+              The trigger button is shown via a different CSS class (.search-trigger-mobile)
+              and the overlay portals to body so it works the same regardless of context. */}
+          <div className="nav-search-mobile">
+            <SearchTrigger />
+          </div>
           {ctaLink && (
             ctaLink.new_tab ? (
               <a href={ctaLink.url} target="_blank" rel="noopener noreferrer" className="nav-cta nav-cta-mobile">

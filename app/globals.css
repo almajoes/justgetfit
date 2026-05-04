@@ -75,6 +75,25 @@ body {
 }
 .site-nav .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(196,255,61,0.3); }
 
+/* Search trigger — small icon button used in both desktop nav and mobile actions row */
+.search-trigger {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+  padding: 0;
+}
+.search-trigger:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+}
+.nav-search-item { display: flex; align-items: center; }
+.nav-search-mobile { display: flex; align-items: center; }
+
 /* Mobile actions (hidden on desktop) */
 .site-nav .nav-mobile-actions { display: none; align-items: center; gap: 10px; }
 .nav-cta-mobile { background: var(--neon); color: #000 !important; padding: 7px 14px; border-radius: 100px; font-size: 13px; font-weight: 700; text-decoration: none; }

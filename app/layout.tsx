@@ -3,6 +3,7 @@ import './globals.css';
 import { getSiteSettings, getSiteCode } from '@/lib/cms';
 import { AnalyticsBeacon } from '@/components/AnalyticsBeacon';
 import { CookieBanner } from '@/components/CookieBanner';
+import { SearchOverlay } from '@/components/SearchOverlay';
 import { Suspense } from 'react';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
@@ -203,6 +204,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             is made. Doesn't block tracking either way; just toggles between
             cookie-based and fingerprint-based visitor identification. */}
         <CookieBanner />
+
+        {/* Search overlay — singleton, listens for ⌘K and trigger button
+            events. Trigger buttons live in SiteNav (desktop and mobile). */}
+        <SearchOverlay />
       </body>
     </html>
   );
