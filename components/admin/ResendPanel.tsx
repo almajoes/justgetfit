@@ -50,7 +50,7 @@ export function ResendPanel({
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const resolved = useMemo(() => resolveAudience(subscribers, audience), [subscribers, audience]);
+  const resolved = useMemo(() => resolveAudience(subscribers, audience, true), [subscribers, audience]);
   const recipientCount = resolved.recipientCount;
 
   async function send() {

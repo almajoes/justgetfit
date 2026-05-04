@@ -49,7 +49,7 @@ export function DraftEditor({
   // Default: 'all' (matches previous behavior of "Send to subscribers" checked).
   const [audience, setAudience] = useState<AudienceValue>(() => defaultAudienceValue());
 
-  const resolvedAudience = useMemo(() => resolveAudience(subscribers, audience), [subscribers, audience]);
+  const resolvedAudience = useMemo(() => resolveAudience(subscribers, audience, true), [subscribers, audience]);
 
   // Unsplash picker state
   const [photoQuery, setPhotoQuery] = useState('');

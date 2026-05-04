@@ -77,7 +77,32 @@ export function defaultAudienceValue(): AudienceValue {
  * downstream logic (sample pool size, Fisher-Yates, dedup loop) operates on
  * a clean unique-id array.
  */
-export function resolveAudience(subscribers: Subscriber[], v: AudienceValue): AudienceResolved {
+/**
+ * Resolve the audience selection to the actual recipient list and counts.
+ * Pure function so the parent can call it for display + send payload.
+ *
+ * Defensive: dedupes the incoming subscribers array by id first. Server-side
+ * pagination with `.range()` over a non-unique sort key (e.g. `subscribed_at`)
+ * can return the same row on two pages when many rows share a timestamp,
+ * which would otherwise cause "picked 2 → shows 4" and "sample 1000 → shows
+ * 999" bugs depending on which mode is active. We dedup once here so all the
+ * downstream logic (sample pool size, Fisher-Yates, dedup loop) operates on
+ * a clean unique-id array.
+ *
+ * `throttle` parameter (default false): when true, subscribers with
+ * last_sent_at within the past 7 days are filtered out BEFORE any mode
+ * logic runs. Newsletter contexts (DraftEditor, ResendPanel) pass true.
+ * Broadcasts pass false (intentional). Must match the throttle prop on the
+ * <AudiencePicker /> for consistent behavior between picker display and
+ * parent send-button count.
+ */
+const RESOLVE_THROTTLE_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function resolveAudience(
+  subscribers: Subscriber[],
+  v: AudienceValue,
+  throttle = false
+): AudienceResolved {
   // Dedup by id first — see comment above
   const seenIds = new Set<string>();
   const uniqueSubs: Subscriber[] = [];
@@ -88,6 +113,15 @@ export function resolveAudience(subscribers: Subscriber[], v: AudienceValue): Au
     }
   }
   subscribers = uniqueSubs;
+
+  // Apply 7-day throttle filter if requested (newsletter context).
+  if (throttle) {
+    const cutoff = Date.now() - RESOLVE_THROTTLE_MS;
+    subscribers = subscribers.filter((s) => {
+      const lastSent = s.last_sent_at ? new Date(s.last_sent_at).getTime() : 0;
+      return lastSent <= cutoff;
+    });
+  }
 
   if (v.mode === 'all') {
     return {
