@@ -941,6 +941,18 @@ select option {
 .admin-bottom-tabs { display: none; }
 .admin-bottom-tab { display: none; }
 
+/* TopList label default (desktop) — ellipsis-truncate long URLs.
+   Mobile @media block below overrides this with horizontal-scroll so
+   touch users can swipe each row to see the full label (since hover
+   tooltips don't work on touch). */
+.admin-toplist-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
   /* Hide the desktop sidebar */
   .admin-sidebar { display: none !important; }
@@ -1010,6 +1022,22 @@ select option {
   /* Defensive: any flex item inside admin pages can shrink (prevents
      long unbreakable strings like URLs from forcing parent width). */
   .admin-page-pad > * { min-width: 0; }
+
+  /* TopList labels (URLs, paths, etc.) — let users swipe each row to see
+     the full label rather than just an ellipsis-truncated preview. The
+     row's outer container stays bounded by the card; only the label
+     itself scrolls horizontally inside its allocated space.
+     Hide scrollbars so the row stays clean — swipe interaction still works. */
+  .admin-toplist-label {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .admin-toplist-label::-webkit-scrollbar { display: none; }
 
   /* Tables: enable horizontal swipe and prevent body width blow-up */
   .admin-table-scroll {

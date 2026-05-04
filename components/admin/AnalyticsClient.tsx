@@ -279,7 +279,7 @@ function TopList({ rows, formatLabel }: { rows: TopRow[]; formatLabel?: (s: stri
         const label = formatLabel ? formatLabel(r.label) : r.label;
         const pct = (r.count / max) * 100;
         return (
-          <div key={i} style={{ position: 'relative', padding: '6px 8px', borderRadius: 6 }}>
+          <div key={i} className="admin-toplist-row" style={{ position: 'relative', padding: '6px 8px', borderRadius: 6 }}>
             <div
               style={{
                 position: 'absolute',
@@ -291,7 +291,10 @@ function TopList({ rows, formatLabel }: { rows: TopRow[]; formatLabel?: (s: stri
               }}
             />
             <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+              {/* Label container — class hooks let CSS swap between desktop
+                  ellipsis-truncation and mobile horizontal-scroll. Keeps the
+                  page itself stable while letting users see full URLs. */}
+              <span className="admin-toplist-label" title={label}>
                 {label}
               </span>
               <span style={{ color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
