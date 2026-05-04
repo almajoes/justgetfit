@@ -196,6 +196,7 @@ export function ResendPanel({
         value={audience}
         onChange={setAudience}
         disabled={submitting}
+        throttle={true}
         intro="Choose who receives this re-send. Defaults to all confirmed subscribers."
       />
 

@@ -354,6 +354,7 @@ export function DraftEditor({
               value={audience}
               onChange={setAudience}
               disabled={busy !== null}
+              throttle={true}
               intro="Choose who receives the newsletter blast on publish. Useful for sending to a sample (e.g. 2,500/week) instead of everyone, while keeping engaged groups in full."
             />
           )}

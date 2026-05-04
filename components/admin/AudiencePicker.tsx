@@ -26,6 +26,11 @@ export type Subscriber = {
   email: string;
   source: string | null;
   subscribed_at: string;
+  // last_sent_at is used by the picker to identify subscribers who would be
+  // throttled (skipped) by the 7-day-newsletter cooldown. Optional — older
+  // callers without this field will treat all subscribers as never-mailed,
+  // which is safe behavior.
+  last_sent_at?: string | null;
 };
 
 export type AudienceMode = 'all' | 'source' | 'pick' | 'random';
@@ -162,18 +167,29 @@ export function AudiencePicker({
   onChange,
   disabled,
   intro = 'Choose who receives this email. Default is everyone confirmed.',
+  throttle = false,
 }: {
   subscribers: Subscriber[];
   value: AudienceValue;
   onChange: (next: AudienceValue) => void;
   disabled?: boolean;
   intro?: string;
+  /**
+   * When true (newsletter context), subscribers with last_sent_at within the
+   * past 7 days are filtered out of the picker entirely — every count, every
+   * mode, every random sample pool operates on the eligible-only list. A
+   * banner shows the excluded count for transparency.
+   *
+   * When false (broadcast context, default), the picker shows everyone — the
+   * 7-day throttle does not apply to broadcasts by user policy.
+   */
+  throttle?: boolean;
 }) {
   // Defensive dedup of incoming subscribers by id — see resolveAudience() for
   // the full explanation. Without this, pagination duplicates from the server
   // would break: pick-mode counts ("picked 2 → 4"), random-mode sample size
   // ("sample 1000 → 999"), source-mode counts in the group grids, etc.
-  const subscribers = useMemo(() => {
+  const dedupedSubscribers = useMemo(() => {
     const seen = new Set<string>();
     const out: Subscriber[] = [];
     for (const s of rawSubscribers) {
@@ -184,6 +200,30 @@ export function AudiencePicker({
     }
     return out;
   }, [rawSubscribers]);
+
+  // Apply 7-day throttle filter (newsletters only). The filtered array is
+  // what every mode below operates on, so counts, search results, and random
+  // sample pools all naturally exclude throttled subscribers. The throttled
+  // count is shown in a banner so the user knows the picker is showing a
+  // reduced pool.
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const { subscribers, throttledCount } = useMemo(() => {
+    if (!throttle) {
+      return { subscribers: dedupedSubscribers, throttledCount: 0 };
+    }
+    const cutoff = Date.now() - SEVEN_DAYS_MS;
+    const eligible: Subscriber[] = [];
+    let throttled = 0;
+    for (const s of dedupedSubscribers) {
+      const lastSent = s.last_sent_at ? new Date(s.last_sent_at).getTime() : 0;
+      if (lastSent > cutoff) {
+        throttled++;
+      } else {
+        eligible.push(s);
+      }
+    }
+    return { subscribers: eligible, throttledCount: throttled };
+  }, [dedupedSubscribers, throttle, SEVEN_DAYS_MS]);
 
   const [pickerSearch, setPickerSearch] = useState('');
 
@@ -246,6 +286,26 @@ export function AudiencePicker({
     <div style={card}>
       <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Audience</div>
       <p style={{ ...muted, marginBottom: 16 }}>{intro}</p>
+
+      {/* Throttle banner — only shown when throttle=true and at least one
+          subscriber is being excluded. Keeps the user informed that the
+          picker is showing a reduced pool, and explains why. */}
+      {throttle && throttledCount > 0 && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '10px 14px',
+            background: 'rgba(255,184,77,0.08)',
+            border: '1px solid rgba(255,184,77,0.25)',
+            borderRadius: 8,
+            color: '#ffb84d',
+            fontSize: 12,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>{throttledCount.toLocaleString()}</strong> subscriber{throttledCount === 1 ? '' : 's'} hidden — already received a newsletter in the past 7 days (1-per-week throttle). They&apos;ll be eligible again on a rolling basis as their 7-day window passes.
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <ModeBtn active={value.mode === 'all'} onClick={() => setMode('all')} disabled={disabled}>

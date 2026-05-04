@@ -4,43 +4,11 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import type { Post } from '@/lib/supabase';
 import { PostEditor } from '@/components/admin/PostEditor';
 import { getCategories } from '@/lib/cms';
+import { loadConfirmedSubscribers } from '@/lib/subscribers';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
-
-type SubRow = {
-  id: string;
-  email: string;
-  source: string | null;
-  subscribed_at: string;
-};
-
-/**
- * Pull all confirmed subscribers (id, email, source) for the AudiencePicker
- * inside PostEditor's ResendPanel. Same paging strategy as
- * /admin/broadcast/page.tsx — Supabase REST default limit is 1,000 rows.
- */
-async function loadConfirmedSubscribers(): Promise<SubRow[]> {
-  const PAGE = 1000;
-  let all: SubRow[] = [];
-  let from = 0;
-  while (true) {
-    const { data } = await supabaseAdmin
-      .from('subscribers')
-      .select('id, email, source, subscribed_at')
-      .eq('status', 'confirmed')
-      .order('subscribed_at', { ascending: false })
-      .order('id', { ascending: true })
-      .range(from, from + PAGE - 1);
-    const batch = (data as SubRow[]) || [];
-    all = all.concat(batch);
-    if (batch.length < PAGE) break;
-    from += PAGE;
-    if (from > 200000) break; // safety bail
-  }
-  return all;
-}
 
 export default async function EditPostPage({ params }: { params: { id: string } }) {
   const [postRow, categories, subscribers] = await Promise.all([
