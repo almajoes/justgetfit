@@ -290,13 +290,13 @@ function TopList({ rows, formatLabel }: { rows: TopRow[]; formatLabel?: (s: stri
                 pointerEvents: 'none',
               }}
             />
-            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
-              {/* Label container — class hooks let CSS swap between desktop
-                  ellipsis-truncation and mobile horizontal-scroll. Keeps the
-                  page itself stable while letting users see full URLs. */}
-              <span className="admin-toplist-label" title={label}>
+            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13, alignItems: 'center' }}>
+              {/* Label container. Must be a block-level element (div, not span)
+                  for overflow-x:auto to actually create a scroll container.
+                  Inline elements ignore overflow. */}
+              <div className="admin-toplist-label" title={label}>
                 {label}
-              </span>
+              </div>
               <span style={{ color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
                 {r.count.toLocaleString()}
               </span>

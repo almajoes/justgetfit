@@ -946,6 +946,7 @@ select option {
    touch users can swipe each row to see the full label (since hover
    tooltips don't work on touch). */
 .admin-toplist-label {
+  display: block;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1029,6 +1030,7 @@ select option {
      itself scrolls horizontally inside its allocated space.
      Hide scrollbars so the row stays clean — swipe interaction still works. */
   .admin-toplist-label {
+    display: block;
     flex: 1;
     min-width: 0;
     overflow-x: auto;
