@@ -147,7 +147,7 @@ export default async function NewsletterAdminPage() {
               <th style={th}>Type</th>
               <th style={th}>Subject / Article</th>
               <th style={th} title="Original audience size at send time">Intended</th>
-              <th style={th} title="What Resend actually received and accepted">Sent (Resend)</th>
+              <th style={th} title="What Resend actually received and accepted">Resend</th>
               <th style={th} title="Confirmed delivered to inbox">Delivered</th>
               <th style={th}>Bounced</th>
               <th style={th}>Complaints</th>

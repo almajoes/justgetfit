@@ -992,9 +992,24 @@ select option {
   }
 
   /* Reduce page padding on admin pages */
-  .admin-page-pad { padding: 16px !important; }
+  .admin-page-pad {
+    padding: 16px !important;
+    /* Prevent any rogue child element (long URL, wide table, etc.) from
+       blowing out the viewport and creating horizontal scroll on mobile.
+       Each scrollable region (tables, etc.) handles its own overflow
+       internally with .admin-table-scroll. */
+    overflow-x: hidden;
+    /* Ensure the wrapper itself can shrink — without this, flex/grid
+       parents won't honor children's min-width:0 properly. */
+    max-width: 100%;
+    box-sizing: border-box;
+  }
   /* Smaller h1 sizes on mobile */
   .admin-page-pad h1 { font-size: 22px !important; }
+
+  /* Defensive: any flex item inside admin pages can shrink (prevents
+     long unbreakable strings like URLs from forcing parent width). */
+  .admin-page-pad > * { min-width: 0; }
 
   /* Tables: enable horizontal swipe and prevent body width blow-up */
   .admin-table-scroll {
