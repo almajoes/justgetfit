@@ -767,12 +767,27 @@ h1.hero-h, .hero-h {
 .partner-card:hover .partner-cta { color: var(--neon); }
 
 /* SUBSCRIBE */
-.subscribe-page { max-width: 1280px; margin: 0 auto; padding: 60px 32px 80px; }
+.subscribe-page { max-width: 1400px; margin: 0 auto; padding: 60px 32px 80px; }
 .promise-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  /* Default desktop: 5 across. Stepped down via media queries below to keep
+     cards readable at narrower widths instead of cramming 5 into a smaller
+     viewport. */
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin-bottom: 60px;
+}
+@media (max-width: 1279px) {
+  .promise-grid { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 1023px) {
+  .promise-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 767px) {
+  .promise-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 479px) {
+  .promise-grid { grid-template-columns: 1fr; }
 }
 .promise-item {
   background: rgba(255,255,255,0.03);
