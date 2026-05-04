@@ -941,17 +941,15 @@ select option {
 .admin-bottom-tabs { display: none; }
 .admin-bottom-tab { display: none; }
 
-/* TopList label default (desktop) — ellipsis-truncate long URLs.
-   Mobile @media block below overrides this with horizontal-scroll so
-   touch users can swipe each row to see the full label (since hover
-   tooltips don't work on touch). */
-.admin-toplist-label {
-  display: block;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* TopList rows on the analytics page — each row is its own horizontal
+   scroll container. Long URLs become swipe-to-see, mirroring the
+   admin-table-scroll pattern used on the subscribers table.
+   Hide the scrollbar visually since it'd be ugly per-row. */
+.admin-toplist-row {
+  scrollbar-width: none;
+}
+.admin-toplist-row::-webkit-scrollbar {
+  display: none;
 }
 
 @media (max-width: 768px) {
@@ -1023,23 +1021,6 @@ select option {
   /* Defensive: any flex item inside admin pages can shrink (prevents
      long unbreakable strings like URLs from forcing parent width). */
   .admin-page-pad > * { min-width: 0; }
-
-  /* TopList labels (URLs, paths, etc.) — let users swipe each row to see
-     the full label rather than just an ellipsis-truncated preview. The
-     row's outer container stays bounded by the card; only the label
-     itself scrolls horizontally inside its allocated space.
-     Hide scrollbars so the row stays clean — swipe interaction still works. */
-  .admin-toplist-label {
-    display: block;
-    flex: 1;
-    min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .admin-toplist-label::-webkit-scrollbar { display: none; }
 
   /* Tables: enable horizontal swipe and prevent body width blow-up */
   .admin-table-scroll {

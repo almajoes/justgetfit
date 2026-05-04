@@ -279,27 +279,66 @@ function TopList({ rows, formatLabel }: { rows: TopRow[]; formatLabel?: (s: stri
         const label = formatLabel ? formatLabel(r.label) : r.label;
         const pct = (r.count / max) * 100;
         return (
-          <div key={i} className="admin-toplist-row" style={{ position: 'relative', padding: '6px 8px', borderRadius: 6 }}>
+          // Outer row — bounded by the card width; this is the scroll
+          // container. overflow-x: auto + a wider inner content = swipe.
+          // Mirrors how .admin-table-scroll works on the subscribers table.
+          <div
+            key={i}
+            className="admin-toplist-row"
+            style={{
+              position: 'relative',
+              borderRadius: 6,
+              overflowX: 'auto',
+              overflowY: 'hidden',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {/* Inner content — uses min-width: max-content so the row's
+                natural width is "as wide as the URL needs to be." That's
+                what makes the outer container scrollable when the URL is
+                longer than the card. */}
             <div
               style={{
-                position: 'absolute',
-                left: 0, top: 0, bottom: 0,
-                width: `${pct}%`,
-                background: 'rgba(196,255,61,0.08)',
-                borderRadius: 6,
-                pointerEvents: 'none',
+                position: 'relative',
+                padding: '6px 8px',
+                minWidth: 'max-content',
+                width: '100%',
               }}
-            />
-            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13, alignItems: 'center' }}>
-              {/* Label container. Must be a block-level element (div, not span)
-                  for overflow-x:auto to actually create a scroll container.
-                  Inline elements ignore overflow. */}
-              <div className="admin-toplist-label" title={label}>
-                {label}
+            >
+              {/* Bar fill (relative to inner content width) */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0, top: 0, bottom: 0,
+                  width: `${pct}%`,
+                  background: 'rgba(196,255,61,0.08)',
+                  borderRadius: 6,
+                  pointerEvents: 'none',
+                }}
+              />
+              {/* Row content — label and count side by side */}
+              <div
+                style={{
+                  position: 'relative',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  fontSize: 13,
+                  alignItems: 'center',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span title={label}>{label}</span>
+                <span
+                  style={{
+                    color: 'var(--text-3)',
+                    fontVariantNumeric: 'tabular-nums',
+                    flexShrink: 0,
+                  }}
+                >
+                  {r.count.toLocaleString()}
+                </span>
               </div>
-              <span style={{ color: 'var(--text-3)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                {r.count.toLocaleString()}
-              </span>
             </div>
           </div>
         );
