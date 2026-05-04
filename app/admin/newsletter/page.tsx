@@ -40,24 +40,76 @@ export default async function NewsletterAdminPage() {
 
   const sends = (data as SendRow[]) || [];
 
-  // Compute site-wide averages across completed sends.
-  // Denominator = total recipients (excluding failed) so the rate is "of emails that actually delivered".
+  // Batch-load event stats for ALL sends in one query.
+  // Per-send queries would be N round-trips; this is one round-trip total.
+  // We then group in JS to build a stats map keyed by send_id.
+  //
+  // Why: cached counter columns on newsletter_sends (opened_count, etc.) can
+  // become stale or wrong if the worker chain breaks mid-send (May 4 2026
+  // incident). Counting events directly always matches Resend reality.
+  type StatsBySend = Record<
+    string,
+    { sent: number; delivered: number; bounced: number; complained: number; opened: Set<string>; clicked: Set<string> }
+  >;
+  const statsBySend: StatsBySend = {};
+  if (sends.length > 0) {
+    const { data: events } = await supabaseAdmin
+      .from('email_events')
+      .select('send_id, event_type, email')
+      .in('send_id', sends.map((s) => s.id));
+
+    for (const ev of events || []) {
+      if (!ev.send_id) continue;
+      if (!statsBySend[ev.send_id]) {
+        statsBySend[ev.send_id] = {
+          sent: 0,
+          delivered: 0,
+          bounced: 0,
+          complained: 0,
+          opened: new Set(),
+          clicked: new Set(),
+        };
+      }
+      const s = statsBySend[ev.send_id];
+      if (ev.event_type === 'sent') s.sent += 1;
+      else if (ev.event_type === 'delivered') s.delivered += 1;
+      else if (ev.event_type === 'bounced') s.bounced += 1;
+      else if (ev.event_type === 'complained') s.complained += 1;
+      else if (ev.event_type === 'opened') s.opened.add(ev.email);
+      else if (ev.event_type === 'clicked') s.clicked.add(ev.email);
+    }
+  }
+
+  // Helper to get stats for a send (returns zeros if no events yet)
+  function statsFor(sendId: string) {
+    const s = statsBySend[sendId];
+    return {
+      sent: s?.sent ?? 0,
+      delivered: s?.delivered ?? 0,
+      bounced: s?.bounced ?? 0,
+      complained: s?.complained ?? 0,
+      opened: s?.opened.size ?? 0,
+      clicked: s?.clicked.size ?? 0,
+    };
+  }
+
+  // Compute site-wide averages across completed sends — all from event tallies.
+  // Denominator = total DELIVERED events ("opens per inbox-arrival").
   const completedSends = sends.filter((s) => s.status === 'completed');
-  const totalRecipients = completedSends.reduce((sum, s) => sum + (s.recipient_count - s.failed_count), 0);
-  const totalOpens = completedSends.reduce((sum, s) => sum + (s.opened_count || 0), 0);
-  const totalClicks = completedSends.reduce((sum, s) => sum + (s.clicked_count || 0), 0);
-  const totalBounces = completedSends.reduce((sum, s) => sum + (s.bounced_count || 0), 0);
-  const totalComplaints = completedSends.reduce((sum, s) => sum + (s.complained_count || 0), 0);
-  const avgOpenRate = pct(totalOpens, totalRecipients);
-  const avgClickRate = pct(totalClicks, totalRecipients);
-  const avgBounceRate = pct(totalBounces, totalRecipients);
-  const avgComplaintRate = pct(totalComplaints, totalRecipients);
+  const totalDelivered = completedSends.reduce((sum, s) => sum + statsFor(s.id).delivered, 0);
+  const totalSent = completedSends.reduce((sum, s) => sum + statsFor(s.id).sent, 0);
+  const totalOpens = completedSends.reduce((sum, s) => sum + statsFor(s.id).opened, 0);
+  const totalClicks = completedSends.reduce((sum, s) => sum + statsFor(s.id).clicked, 0);
+  const totalBounces = completedSends.reduce((sum, s) => sum + statsFor(s.id).bounced, 0);
+  const totalComplaints = completedSends.reduce((sum, s) => sum + statsFor(s.id).complained, 0);
+  const avgOpenRate = pct(totalOpens, totalDelivered);
+  const avgClickRate = pct(totalClicks, totalDelivered);
+  const avgBounceRate = pct(totalBounces, totalSent);
+  const avgComplaintRate = pct(totalComplaints, totalDelivered);
 
   // Health-color thresholds for bounce + complaint rates (rough industry ballpark).
-  // bounce:    <2%   default,  2-5%   orange, ≥5%   red
-  // complaint: <0.1% default, 0.1-0.3% orange, ≥0.3% red
-  const bouncePct = totalRecipients > 0 ? (totalBounces / totalRecipients) * 100 : 0;
-  const complaintPct = totalRecipients > 0 ? (totalComplaints / totalRecipients) * 100 : 0;
+  const bouncePct = totalSent > 0 ? (totalBounces / totalSent) * 100 : 0;
+  const complaintPct = totalDelivered > 0 ? (totalComplaints / totalDelivered) * 100 : 0;
   const bounceAccent = bouncePct >= 5 ? '#ff6b6b' : bouncePct >= 2 ? '#ff9b6b' : 'var(--text)';
   const complaintAccent = complaintPct >= 0.3 ? '#ff6b6b' : complaintPct >= 0.1 ? '#ff9b6b' : 'var(--text)';
 
@@ -79,7 +131,7 @@ export default async function NewsletterAdminPage() {
           }}
         >
           <SummaryCard label="Total sends" value={String(completedSends.length)} />
-          <SummaryCard label="Total recipients" value={totalRecipients.toLocaleString()} />
+          <SummaryCard label="Total delivered" value={totalDelivered.toLocaleString()} />
           <SummaryCard label="Avg. open rate" value={avgOpenRate} accent="var(--neon)" />
           <SummaryCard label="Avg. click rate" value={avgClickRate} accent="var(--neon)" />
           <SummaryCard label="Bounce rate" value={avgBounceRate} accent={bounceAccent} />
@@ -94,8 +146,9 @@ export default async function NewsletterAdminPage() {
               <th style={th}>Sent</th>
               <th style={th}>Type</th>
               <th style={th}>Subject / Article</th>
-              <th style={th}>Recipients</th>
-              <th style={th}>Failed</th>
+              <th style={th} title="Original audience size at send time">Intended</th>
+              <th style={th} title="What Resend actually received and accepted">Sent (Resend)</th>
+              <th style={th} title="Confirmed delivered to inbox">Delivered</th>
               <th style={th}>Bounced</th>
               <th style={th}>Complaints</th>
               <th style={th}>Opens</th>
@@ -105,9 +158,10 @@ export default async function NewsletterAdminPage() {
           </thead>
           <tbody>
             {sends.map((s) => {
-              const delivered = s.recipient_count - s.failed_count;
-              const openRate = pct(s.opened_count || 0, delivered);
-              const clickRate = pct(s.clicked_count || 0, delivered);
+              const ev = statsFor(s.id);
+              const sendGap = s.recipient_count - ev.sent;
+              const openRate = pct(ev.opened, ev.delivered);
+              const clickRate = pct(ev.clicked, ev.delivered);
               return (
                 <tr key={s.id} style={{ borderTop: '1px solid var(--line)' }}>
                   <td style={{ ...td, color: 'var(--text-3)', fontSize: 13 }}>
@@ -137,32 +191,38 @@ export default async function NewsletterAdminPage() {
                         : s.posts?.title || '(deleted post)'}
                     </Link>
                   </td>
-                  <td style={{ ...td, fontWeight: 600 }}>{s.recipient_count}</td>
-                  <td style={{ ...td, color: s.failed_count > 0 ? '#ff6b6b' : 'var(--text-3)' }}>
-                    {s.failed_count}
+                  <td style={{ ...td, fontWeight: 600 }}>{s.recipient_count.toLocaleString()}</td>
+                  <td style={{ ...td, fontWeight: 600, color: sendGap > 0 ? '#ff9b6b' : 'var(--text)' }}>
+                    {ev.sent.toLocaleString()}
+                    {sendGap > 0 && (
+                      <div style={{ fontSize: 11, color: '#ff6b6b' }}>
+                        −{sendGap.toLocaleString()} gap
+                      </div>
+                    )}
                   </td>
+                  <td style={{ ...td, fontWeight: 600 }}>{ev.delivered.toLocaleString()}</td>
                   <td style={td}>
-                    <div style={{ fontWeight: 600, color: (s.bounced_count || 0) > 0 ? '#ff9b6b' : 'var(--text-3)' }}>
-                      {s.bounced_count || 0}
+                    <div style={{ fontWeight: 600, color: ev.bounced > 0 ? '#ff9b6b' : 'var(--text-3)' }}>
+                      {ev.bounced.toLocaleString()}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                      {pct(s.bounced_count || 0, delivered)}
+                      {pct(ev.bounced, ev.sent)}
                     </div>
                   </td>
                   <td style={td}>
-                    <div style={{ fontWeight: 600, color: (s.complained_count || 0) > 0 ? '#ff6b6b' : 'var(--text-3)' }}>
-                      {s.complained_count || 0}
+                    <div style={{ fontWeight: 600, color: ev.complained > 0 ? '#ff6b6b' : 'var(--text-3)' }}>
+                      {ev.complained.toLocaleString()}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                      {pct(s.complained_count || 0, delivered)}
+                      {pct(ev.complained, ev.delivered)}
                     </div>
                   </td>
                   <td style={td}>
-                    <div style={{ fontWeight: 600 }}>{s.opened_count || 0}</div>
+                    <div style={{ fontWeight: 600 }}>{ev.opened.toLocaleString()}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{openRate}</div>
                   </td>
                   <td style={td}>
-                    <div style={{ fontWeight: 600 }}>{s.clicked_count || 0}</div>
+                    <div style={{ fontWeight: 600 }}>{ev.clicked.toLocaleString()}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{clickRate}</div>
                   </td>
                   <td style={td}>

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ResendPanel } from '@/components/admin/ResendPanel';
 import { SendEventsTable } from '@/components/admin/SendEventsTable';
+import { RefreshSendStatsButton } from '@/components/admin/RefreshSendStatsButton';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -66,7 +67,6 @@ async function loadConfirmedSubscribers(): Promise<SubRow[]> {
       .select('id, email, source, subscribed_at')
       .eq('status', 'confirmed')
       .order('subscribed_at', { ascending: false })
-      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     const batch = (data as SubRow[]) || [];
     all = all.concat(batch);
@@ -123,7 +123,40 @@ export default async function SendDetailPage({ params }: { params: { id: string 
     .map(([url, { count, uniqueUsers }]) => ({ url, totalClicks: count, uniqueClickers: uniqueUsers.size }))
     .sort((a, b) => b.uniqueClickers - a.uniqueClickers);
 
-  const delivered = sendRow.recipient_count - sendRow.failed_count;
+  // ─── Compute live stats from email_events (Resend = source of truth) ────
+  // We trust the events table over cached counters on newsletter_sends because
+  // the cached counters can become stale or wrong if the worker chain breaks
+  // mid-send (May 4 2026 incident: worker reported processed_count=400 but
+  // Resend only ever received 185 events). Counting events directly always
+  // matches what Resend actually did.
+  //
+  // `intended` is the original audience size at send time — preserved on
+  // newsletter_sends.recipient_count and never overwritten. The gap between
+  // intended and sent shows worker-chain failures honestly.
+  const eventCount = (type: string) =>
+    (byType[type] || []).filter((e) => e !== undefined).length;
+
+  // Unique-recipient counts (a single subscriber can fire multiple opened/clicked
+  // events; we only count distinct emails per type).
+  const uniqueByType = (type: string) =>
+    new Set((byType[type] || []).map((e) => e.email)).size;
+
+  const intended = sendRow.recipient_count;
+  const sentCount = eventCount('sent');                  // What Resend received
+  const deliveredCount = eventCount('delivered');        // Landed in inbox
+  const bouncedCount = eventCount('bounced');            // Hard bounce
+  const complainedCount = eventCount('complained');      // Marked as spam
+  const openedCount = uniqueByType('opened');
+  const clickedCount = uniqueByType('clicked');
+
+  // "Not received" = subscribers we tried to send to but who never got the email.
+  // = (intended - actually-sent) + bounced. Includes both subscribers where the
+  // worker never made the Resend API call AND addresses Resend rejected.
+  const notReceived = Math.max(0, intended - sentCount) + bouncedCount;
+
+  // Backwards-compat: keep `delivered` for any existing references downstream,
+  // but it now means "actually delivered to inbox" (event-derived).
+  const delivered = deliveredCount;
 
   const titleLabel =
     sendRow.kind === 'broadcast'
@@ -160,11 +193,16 @@ export default async function SendDetailPage({ params }: { params: { id: string 
         <span style={{ color: 'var(--text-3)', fontSize: 13 }}>{new Date(sendRow.sent_at).toLocaleString()}</span>
       </div>
 
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 32, letterSpacing: '-0.02em' }}>
-        {titleLabel}
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32, flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', margin: 0, flex: 1 }}>
+          {titleLabel}
+        </h1>
+        <RefreshSendStatsButton />
+      </div>
 
-      {/* Stat cards */}
+      {/* Stat cards — all values computed live from email_events (Resend events).
+          The cached fields on newsletter_sends are no longer trusted for display
+          because they can desync if the worker chain breaks mid-send. */}
       <div
         className="admin-stat-row"
         style={{
@@ -174,22 +212,71 @@ export default async function SendDetailPage({ params }: { params: { id: string 
           marginBottom: 32,
         }}
       >
-        <Stat label="Recipients" value={sendRow.recipient_count.toLocaleString()} />
-        <Stat label="Delivered" value={delivered.toLocaleString()} />
-        <Stat label="Failed" value={sendRow.failed_count.toLocaleString()} accent={sendRow.failed_count > 0 ? '#ff6b6b' : undefined} />
+        <Stat label="Intended" value={intended.toLocaleString()} />
+        <Stat
+          label="Sent"
+          value={sentCount.toLocaleString()}
+          accent={sentCount < intended ? '#ff9b6b' : undefined}
+        />
+        <Stat
+          label="Delivered"
+          value={`${deliveredCount.toLocaleString()} · ${pct(deliveredCount, sentCount)}`}
+          accent={deliveredCount > 0 ? 'var(--neon)' : undefined}
+        />
+        <Stat
+          label="Not received"
+          value={notReceived.toLocaleString()}
+          accent={notReceived > 0 ? '#ff6b6b' : undefined}
+        />
         <Stat
           label="Bounced"
-          value={`${(sendRow.bounced_count || 0).toLocaleString()} · ${pct(sendRow.bounced_count || 0, delivered)}`}
-          accent={(sendRow.bounced_count || 0) > 0 ? '#ff9b6b' : undefined}
+          value={`${bouncedCount.toLocaleString()} · ${pct(bouncedCount, sentCount)}`}
+          accent={bouncedCount > 0 ? '#ff9b6b' : undefined}
         />
         <Stat
-          label="Complaints"
-          value={`${(sendRow.complained_count || 0).toLocaleString()} · ${pct(sendRow.complained_count || 0, delivered)}`}
-          accent={(sendRow.complained_count || 0) > 0 ? '#ff6b6b' : undefined}
+          label="Unique opens"
+          value={`${openedCount.toLocaleString()} · ${pct(openedCount, deliveredCount)}`}
+          accent="var(--neon)"
         />
-        <Stat label="Unique opens" value={`${sendRow.opened_count} · ${pct(sendRow.opened_count, delivered)}`} accent="var(--neon)" />
-        <Stat label="Unique clicks" value={`${sendRow.clicked_count} · ${pct(sendRow.clicked_count, delivered)}`} accent="var(--neon)" />
+        <Stat
+          label="Unique clicks"
+          value={`${clickedCount.toLocaleString()} · ${pct(clickedCount, deliveredCount)}`}
+          accent="var(--neon)"
+        />
       </div>
+
+      {/* Diagnostic warning if there's a gap between intended and sent */}
+      {intended > sentCount && (
+        <div
+          style={{
+            marginBottom: 24,
+            padding: 14,
+            background: 'rgba(255,107,107,0.08)',
+            border: '1px solid rgba(255,107,107,0.3)',
+            borderRadius: 12,
+            color: '#ff9b6b',
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>Send gap:</strong> {intended.toLocaleString()} subscribers were intended for
+          this send, but Resend only received {sentCount.toLocaleString()} (
+          {(intended - sentCount).toLocaleString()} never sent). This usually means the worker
+          chain broke mid-send. The watchdog cron should now auto-recover stuck jobs going
+          forward.
+        </div>
+      )}
+
+      {/* Complaints stat — separate row only shown if any complaints */}
+      {complainedCount > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <Stat
+            label="Complaints"
+            value={`${complainedCount.toLocaleString()} · ${pct(complainedCount, deliveredCount)}`}
+            accent="#ff6b6b"
+          />
+        </div>
+      )}
 
       {/* RE-SEND PANEL — only for kind='post' with an existing post */}
       {canResend && (

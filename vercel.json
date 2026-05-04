@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/purge-pageviews",
       "schedule": "30 0 * * *"
+    },
+    {
+      "path": "/api/cron/watchdog-jobs",
+      "schedule": "* * * * *"
     }
   ]
 }
