@@ -31,7 +31,15 @@ async function loadConfirmedSubscribers(): Promise<SubRow[]> {
       .from('subscribers')
       .select('id, email, source, subscribed_at')
       .eq('status', 'confirmed')
+      // The tie-breaker on `id` is critical. Bulk imports produce many rows
+      // with identical `subscribed_at` timestamps. Without a unique secondary
+      // sort, Postgres returns them in arbitrary order on each .range() page,
+      // causing rows to appear on multiple pages OR get skipped entirely —
+      // which manifests as undercount (e.g. 10,000 confirmed showing as 9,978
+      // in the audience picker after dedup). See also: same fix applied to
+      // /admin/posts, /admin/subscribers, /admin/newsletter, /admin/broadcast.
       .order('subscribed_at', { ascending: false })
+      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
 
     const batch = (data as SubRow[]) || [];
