@@ -1122,12 +1122,18 @@ select option {
    Admin mobile responsive WAVE 2 — utility grid classes
    ──────────────────────────────────────────────────────────────────────── */
 
-/* Generic admin form grids — desktop preserves N columns, mobile stacks to 1 */
+/* Generic admin form grids — desktop preserves N columns, mobile stacks to 1.
+   Use minmax(0, 1fr) instead of plain 1fr: plain 1fr means minmax(auto, 1fr)
+   where auto = min-content, and min-content for a cell containing a long
+   unbreakable string (URL, slug) becomes that string's full width. That
+   forces the grid track to expand past the viewport, pushing card edges
+   off-screen. minmax(0, 1fr) sets the floor to 0 so the track honors its
+   parent's width regardless of content. */
 @media (max-width: 768px) {
   .admin-grid-2,
   .admin-grid-3,
   .admin-grid-3col {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
   }
   /* Multi-column "row" layouts (label + value + actions) on Navigation, etc.
      stack to a more sensible 2-column (label/value) + button-row underneath */
