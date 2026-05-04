@@ -147,7 +147,7 @@ export default async function NewsletterAdminPage() {
               <th style={th}>Type</th>
               <th style={th}>Subject / Article</th>
               <th style={th} title="Original audience size at send time">Intended</th>
-              <th style={th} title="What Resend actually received and accepted">Resend</th>
+              <th style={th} title="What Resend actually received and accepted">Actual</th>
               <th style={th} title="Confirmed delivered to inbox">Delivered</th>
               <th style={th}>Bounced</th>
               <th style={th}>Complaints</th>
@@ -265,6 +265,14 @@ export default async function NewsletterAdminPage() {
       </div>
 
       <p style={{ marginTop: 16, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
+        <strong style={{ color: 'var(--text-2)' }}>Why Delivered + Bounced doesn&apos;t always equal Actual:</strong>{' '}
+        <em>Actual</em> is the count of messages Resend accepted from our server. <em>Delivered</em> is what landed in
+        an inbox; <em>Bounced</em> is what Resend reported as a permanent failure. The gap is messages that are still
+        in flight (recipient server queued/greylisted them) or in soft-bounce states Resend hasn&apos;t classified yet.
+        Those typically resolve to delivered or bounced over the following hours, and the &ldquo;Refresh stats&rdquo;
+        button on each send detail will pick up the latest events.
+      </p>
+      <p style={{ marginTop: 12, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
         Open rates are tracked via a 1×1 pixel. Apple Mail Privacy Protection (default on iPhone) pre-loads
         all images including this pixel — so opens get counted even when the user didn&apos;t actually open the
         email. Treat opens as a soft trend signal, not absolute truth. Click rates are reliable — they fire
