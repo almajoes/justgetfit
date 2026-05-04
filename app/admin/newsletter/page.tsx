@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { TableHeaderTip } from '@/components/admin/TableHeaderTip';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -146,14 +147,54 @@ export default async function NewsletterAdminPage() {
               <th style={th}>Sent</th>
               <th style={th}>Type</th>
               <th style={th}>Subject / Article</th>
-              <th style={th} title="Original audience size at send time">Intended</th>
-              <th style={th} title="What Resend actually received and accepted">Actual</th>
-              <th style={th} title="Confirmed delivered to inbox">Delivered</th>
-              <th style={th}>Bounced</th>
-              <th style={th}>Complaints</th>
-              <th style={th}>Opens</th>
-              <th style={th}>Clicks</th>
-              <th style={th}>Status</th>
+              <th style={th}>
+                <TableHeaderTip
+                  label="Intended"
+                  tip="Original audience size at send time — how many subscribers were selected to receive this email."
+                />
+              </th>
+              <th style={th}>
+                <TableHeaderTip
+                  label="Actual"
+                  tip="What Resend (our email provider) actually received and accepted from our server. Should match Intended unless the worker chain dropped subscribers mid-send — see the gap indicator in red below the count."
+                />
+              </th>
+              <th style={th}>
+                <TableHeaderTip
+                  label="Delivered"
+                  tip="Confirmed delivered to a recipient's inbox by their mail server. The percentage is of the Actual count."
+                />
+              </th>
+              <th style={th}>
+                <TableHeaderTip
+                  label="Bounced"
+                  tip="Permanent delivery failures (invalid address, mailbox full, server rejection). Soft bounces and temporary delays are NOT counted here. Industry health threshold: under 2%."
+                />
+              </th>
+              <th style={th}>
+                <TableHeaderTip
+                  label="Complaints"
+                  tip="Recipients who marked the email as spam in their mail client. Industry health threshold: under 0.1%. Higher rates can hurt sender reputation and future deliverability."
+                />
+              </th>
+              <th style={th}>
+                <TableHeaderTip
+                  label="Opens"
+                  tip="Unique recipients who opened the email at least once. Tracked via a 1×1 pixel — Apple Mail Privacy Protection inflates this number by pre-loading images. Treat as a soft trend signal."
+                />
+              </th>
+              <th style={th}>
+                <TableHeaderTip
+                  label="Clicks"
+                  tip="Unique recipients who clicked at least one link in the email. Reliable — fires only on real clicks. Click-through rate is calculated against Delivered."
+                />
+              </th>
+              <th style={th}>
+                <TableHeaderTip
+                  label="Status"
+                  tip="Send job status. completed = all subscribers processed. sending = worker is mid-send. failed = job aborted (check the send detail page for error message)."
+                />
+              </th>
             </tr>
           </thead>
           <tbody>
