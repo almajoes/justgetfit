@@ -90,6 +90,45 @@ export function DraftEditor({
               }
           : undefined;
 
+      // Throttle preview: before firing the send, check how many subscribers
+      // will actually receive the email after the 7-day-throttle filter.
+      // Show a confirm dialog if any subscribers are excluded so the user
+      // isn't surprised by a smaller-than-expected Actual count.
+      if (action === 'publish' && sendNewsletter && audiencePayload) {
+        const previewBody =
+          audiencePayload.mode === 'all'
+            ? { mode: 'all' as const }
+            : { mode: 'list' as const, ids: audiencePayload.subscriber_ids };
+
+        try {
+          const previewRes = await fetch('/api/admin/audience-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(previewBody),
+          });
+          if (previewRes.ok) {
+            const preview: { selected: number; throttled: number; willSend: number } = await previewRes.json();
+            if (preview.throttled > 0) {
+              const confirmed = window.confirm(
+                `${preview.selected} subscribers selected.\n` +
+                  `${preview.throttled} received a newsletter in the past 7 days and will be skipped (1-per-week throttle).\n\n` +
+                  `Sending to ${preview.willSend} subscribers.\n\n` +
+                  `Continue?`
+              );
+              if (!confirmed) {
+                setBusy(null);
+                return;
+              }
+            }
+          }
+        } catch (previewErr) {
+          // If preview fails, proceed without it — don't block publishing
+          // because of a diagnostic call. The send itself still applies the
+          // throttle on the server side.
+          console.warn('Audience preview failed:', previewErr);
+        }
+      }
+
       const res = await fetch(`/api/admin/drafts/${draft.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

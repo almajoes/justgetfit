@@ -55,12 +55,33 @@ export default async function NewsletterAdminPage() {
   >;
   const statsBySend: StatsBySend = {};
   if (sends.length > 0) {
-    const { data: events } = await supabaseAdmin
-      .from('email_events')
-      .select('send_id, event_type, email')
-      .in('send_id', sends.map((s) => s.id));
+    // Page through email_events to bypass Supabase's default 1000-row limit
+    // on .in() queries. Without this, sends after the first ~3-4 (depending
+    // on event volume per send) get silently truncated and show 0 stats
+    // instead of the real values, causing discrepancies with the detail page
+    // which queries one send_id at a time.
+    const PAGE_SIZE = 1000;
+    const sendIds = sends.map((s) => s.id);
+    const allEvents: { send_id: string | null; event_type: string; email: string }[] = [];
+    let from = 0;
+    while (true) {
+      const { data: page, error } = await supabaseAdmin
+        .from('email_events')
+        .select('send_id, event_type, email')
+        .in('send_id', sendIds)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) {
+        console.error('[send log] event pagination failed:', error.message);
+        break;
+      }
+      const batch = page || [];
+      for (const ev of batch) allEvents.push(ev as typeof allEvents[number]);
+      if (batch.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+      if (from > 100000) break; // safety bail
+    }
 
-    for (const ev of events || []) {
+    for (const ev of allEvents) {
       if (!ev.send_id) continue;
       if (!statsBySend[ev.send_id]) {
         statsBySend[ev.send_id] = {
@@ -116,7 +137,7 @@ export default async function NewsletterAdminPage() {
   const complaintAccent = complaintPct >= 0.3 ? '#ff6b6b' : complaintPct >= 0.1 ? '#ff9b6b' : 'var(--text)';
 
   return (
-    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1480, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 8, flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.02em', margin: 0 }}>Send log</h1>
         <RefreshSendStatsButton />
