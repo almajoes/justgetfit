@@ -138,6 +138,41 @@ export const CONTACT_DEFAULT: ContactPage = {
  * managed here.
  */
 export const APP_DEFAULT: AppPage = {
+  // ─── Hero / CTA card defaults ───
+  // Mirrors what was previously hardcoded in components/AppCTA.tsx.
+  // "AI-generated meal plans" wording was removed per May 3 update —
+  // now reads "Meal plans built around your preferences".
+  cta_eyebrow: 'New · The Just Get Fit App',
+  cta_headline: 'Get personalized plans that adapt to you.',
+  cta_subhead_inline:
+    'Track workouts, follow personalized routines, and get meal plans built around your preferences. Free for newsletter subscribers.',
+  cta_subhead_hero:
+    'Track workouts, follow personalized routines, and get meal plans built around your goals and preferences. Free for Just Get Fit newsletter subscribers — the app uses your existing email to grant access automatically.',
+  cta_features: [
+    {
+      icon: '📊',
+      title: 'Fitness tracker',
+      desc: 'Log workouts, track progress, and see your trends over time.',
+    },
+    {
+      icon: '💪',
+      title: 'Workout routines',
+      desc: 'Personalized routines based on your goals and experience.',
+    },
+    {
+      icon: '🥗',
+      title: 'Meal plans',
+      desc: 'Meal plans built around your preferences.',
+    },
+  ],
+  cta_primary_url: 'https://app.justgetfit.org',
+  cta_primary_label_inline: 'Try the app →',
+  cta_primary_label_hero: 'Open the app →',
+  cta_secondary_label_inline: 'Learn more',
+  cta_secondary_href_inline: '/app',
+  cta_secondary_label_hero: 'Not a subscriber yet? Join free',
+  cta_secondary_href_hero: '/subscribe',
+
   how_it_works_eyebrow: 'How it works',
   how_it_works_heading: 'Three steps from inbox to action.',
   steps: [
@@ -173,7 +208,7 @@ export const APP_DEFAULT: AppPage = {
     {
       icon: '🥗',
       title: 'Meal plans',
-      desc: 'AI-generated meal suggestions based on your dietary preferences, restrictions, and goals. Skip the meal-planning paralysis — get options that fit how you actually eat.',
+      desc: 'Meal suggestions based on your dietary preferences, restrictions, and goals. Skip the meal-planning paralysis — get options that fit how you actually eat.',
     },
   ],
 

@@ -203,6 +203,24 @@ export type ContactPage = {
 };
 
 export type AppPage = {
+  // ─── Hero / CTA card (shared between /app top hero and article-end CTA) ───
+  // The same component renders in two variants; some fields differ per variant
+  // (subhead, primary button label, secondary link) while others are shared
+  // (eyebrow, headline, feature cards, primary button URL).
+  cta_eyebrow: string;
+  cta_headline: string;
+  cta_subhead_inline: string;
+  cta_subhead_hero: string;
+  cta_features: { icon: string; title: string; desc: string }[];
+  cta_primary_url: string;
+  cta_primary_label_inline: string;
+  cta_primary_label_hero: string;
+  // Secondary links — different copy/destinations per variant
+  cta_secondary_label_inline: string;
+  cta_secondary_href_inline: string;
+  cta_secondary_label_hero: string;
+  cta_secondary_href_hero: string;
+
   // The "How it works" section
   how_it_works_eyebrow: string;
   how_it_works_heading: string;

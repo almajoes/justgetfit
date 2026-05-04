@@ -48,8 +48,8 @@ export default async function AppLandingPage() {
       <SiteNav />
       <main style={{ maxWidth: 920, margin: '0 auto', padding: '64px 24px 96px' }}>
         {/* Hero — uses the AppCTA "hero" variant for the centerpiece.
-            Hardcoded since AppCTA is shared with article-end CTAs. */}
-        <AppCTA variant="hero" />
+            Now CMS-managed via /admin/pages/app under the Hero/CTA section. */}
+        <AppCTA variant="hero" content={page} />
 
         {/* How it works — three short steps */}
         {page.steps && page.steps.length > 0 && (

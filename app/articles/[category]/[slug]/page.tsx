@@ -8,7 +8,7 @@ import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { AppCTA } from '@/components/AppCTA';
-import { getCategories } from '@/lib/cms';
+import { getCategories, getAppPage } from '@/lib/cms';
 import { preprocessMarkdown } from '@/lib/markdown';
 
 export const revalidate = 0;
@@ -89,10 +89,11 @@ export default async function ArticlePage({ params }: { params: { category: stri
   // Verify category matches — prevents URL spoofing like /articles/strength/<nutrition-slug>
   if (post.category !== params.category) notFound();
 
-  const [related, categories, counts] = await Promise.all([
+  const [related, categories, counts, appPage] = await Promise.all([
     getRelatedPosts(post.category, post.slug, 3),
     getCategories(),
     getCategoryCounts(),
+    getAppPage(),
   ]);
 
   const formattedDate = new Date(post.published_at).toLocaleDateString('en-US', {
@@ -227,8 +228,9 @@ export default async function ArticlePage({ params }: { params: { category: stri
             </div>
 
             {/* End-of-article CTA — promotes the Just Get Fit app to readers
-                who finished the article (warm leads, peak intent moment). */}
-            <AppCTA variant="inline" />
+                who finished the article (warm leads, peak intent moment).
+                Content is CMS-managed via /admin/pages/app. */}
+            <AppCTA variant="inline" content={appPage} />
 
             <div
               style={{

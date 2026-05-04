@@ -257,18 +257,77 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
           </>
         )}
 
-        {/* APP specific — manages everything BELOW the hero on /app.
-            The hero/AppCTA at the top of /app stays hardcoded since it's a
-            shared component used on article pages too. */}
+        {/* APP specific — manages everything on /app AND the shared Hero/CTA
+            card used at the top of /app and at the end of every article. */}
         {slug === 'app' && (
           <>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 8 }}>Hero / CTA card (shared with article-end CTA)</h3>
             <div style={{ padding: 12, background: 'rgba(196,255,61,0.06)', borderRadius: 8, border: '1px solid rgba(196,255,61,0.2)', fontSize: 13, color: 'var(--text-2)', marginBottom: 8 }}>
-              <strong style={{ color: 'var(--neon)' }}>Note:</strong> The hero card at the top of /app is the
-              same shared component used on article-end CTAs. To change its copy,
-              edit <code>components/AppCTA.tsx</code>. This editor manages everything below the hero.
+              <strong style={{ color: 'var(--neon)' }}>Note:</strong> This card appears in two places — at the top
+              of <code>/app</code> as a hero, and at the end of every article as an inline card. Most fields are shared,
+              but subhead text, primary button label, and secondary link differ per variant (so the article-end card
+              can read short while the /app hero reads long).
+            </div>
+            <Field label="Eyebrow tag (e.g. 'New · The Just Get Fit App')">
+              <input className="input" value={content.cta_eyebrow || ''} onChange={(e) => update(['cta_eyebrow'], e.target.value)} />
+            </Field>
+            <Field label="Headline">
+              <input className="input" value={content.cta_headline || ''} onChange={(e) => update(['cta_headline'], e.target.value)} />
+            </Field>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Field label="Subhead — INLINE variant (article-end, keep concise)">
+                <textarea className="input" rows={3} value={content.cta_subhead_inline || ''} onChange={(e) => update(['cta_subhead_inline'], e.target.value)} />
+              </Field>
+              <Field label="Subhead — HERO variant (/app top, can be longer)">
+                <textarea className="input" rows={3} value={content.cta_subhead_hero || ''} onChange={(e) => update(['cta_subhead_hero'], e.target.value)} />
+              </Field>
+            </div>
+            <ArrayEditor
+              title="Feature cards (3-column grid in the CTA)"
+              items={content.cta_features || []}
+              onAdd={() => addItem('cta_features', { icon: '✨', title: '', desc: '' })}
+              onRemove={(i) => removeItem('cta_features', i)}
+              onMove={(i, d) => moveItem('cta_features', i, d)}
+              renderItem={(item, i) => (
+                <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
+                  <input className="input" placeholder="🎯" value={item.icon || ''} onChange={(e) => update(['cta_features', i, 'icon'], e.target.value)} />
+                  <input className="input" placeholder="Title" value={item.title || ''} onChange={(e) => update(['cta_features', i, 'title'], e.target.value)} />
+                  <div />
+                  <textarea className="input" rows={2} placeholder="Short description" value={item.desc || ''} onChange={(e) => update(['cta_features', i, 'desc'], e.target.value)} />
+                </div>
+              )}
+            />
+            <Field label="Primary button URL (where the main CTA links to — typically https://app.justgetfit.org)">
+              <input className="input" value={content.cta_primary_url || ''} onChange={(e) => update(['cta_primary_url'], e.target.value)} />
+            </Field>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text-2)' }}>INLINE variant (article-end)</h4>
+                <Field label="Primary button label">
+                  <input className="input" value={content.cta_primary_label_inline || ''} onChange={(e) => update(['cta_primary_label_inline'], e.target.value)} />
+                </Field>
+                <Field label="Secondary link label">
+                  <input className="input" value={content.cta_secondary_label_inline || ''} onChange={(e) => update(['cta_secondary_label_inline'], e.target.value)} />
+                </Field>
+                <Field label="Secondary link href">
+                  <input className="input" value={content.cta_secondary_href_inline || ''} onChange={(e) => update(['cta_secondary_href_inline'], e.target.value)} />
+                </Field>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text-2)' }}>HERO variant (/app top)</h4>
+                <Field label="Primary button label">
+                  <input className="input" value={content.cta_primary_label_hero || ''} onChange={(e) => update(['cta_primary_label_hero'], e.target.value)} />
+                </Field>
+                <Field label="Secondary link label">
+                  <input className="input" value={content.cta_secondary_label_hero || ''} onChange={(e) => update(['cta_secondary_label_hero'], e.target.value)} />
+                </Field>
+                <Field label="Secondary link href">
+                  <input className="input" value={content.cta_secondary_href_hero || ''} onChange={(e) => update(['cta_secondary_href_hero'], e.target.value)} />
+                </Field>
+              </div>
             </div>
 
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 8 }}>How it works section</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 24 }}>How it works section</h3>
             <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
               <Field label="Eyebrow tag">
                 <input className="input" value={content.how_it_works_eyebrow || ''} onChange={(e) => update(['how_it_works_eyebrow'], e.target.value)} />
