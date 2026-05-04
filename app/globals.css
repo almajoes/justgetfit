@@ -941,17 +941,19 @@ select option {
 .admin-bottom-tabs { display: none; }
 .admin-bottom-tab { display: none; }
 
-/* TopList rows on the analytics page — each row is its own horizontal
-   scroll container, mirroring how .admin-table-scroll works on the
-   subscribers table:
-     - outer row wrapper: overflow-x: auto
-     - inner content: min-width: max-content (forces width past wrapper)
-   When the inner content (label + count) exceeds the row's available
-   width, the row becomes scrollable. Hide the scrollbar so it stays clean. */
-.admin-toplist-row {
+/* TopList row label area — horizontal scroll container for long URLs.
+   The row's count stays pinned right (outside the scroll); only the
+   label area swipes. This works because:
+     - Parent row is flex with the label area as flex: 1 1 0, min-width: 0
+     - That combination lets the label area shrink below its content size
+       AND establish itself as a scroll container
+     - Inner span has white-space: nowrap so the URL stays one line
+     - When URL > label area width, swipe scrolls
+   Hide the scrollbar visually so rows stay clean. */
+.admin-toplist-label-scroll {
   scrollbar-width: none;
 }
-.admin-toplist-row::-webkit-scrollbar {
+.admin-toplist-label-scroll::-webkit-scrollbar {
   display: none;
 }
 

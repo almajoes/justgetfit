@@ -279,67 +279,77 @@ function TopList({ rows, formatLabel }: { rows: TopRow[]; formatLabel?: (s: stri
         const label = formatLabel ? formatLabel(r.label) : r.label;
         const pct = (r.count / max) * 100;
         return (
-          // OUTER row — this is the scroll container. Same pattern as
-          // .admin-table-scroll on the subscribers table:
-          //   - outer wrapper: overflow-x: auto
-          //   - inner content: forced wider than wrapper via min-width
-          // Result: when content exceeds wrapper width, swipe scrolls it.
+          // Row container: flex layout with count pinned right.
+          // Label area is its own flex item that shrinks (flex: 1 + min-width: 0)
+          // and becomes the horizontal scroll container.
           <div
             key={i}
             className="admin-toplist-row"
             style={{
               position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '6px 8px',
               borderRadius: 6,
-              overflowX: 'auto',
-              WebkitOverflowScrolling: 'touch',
+              fontSize: 13,
+              overflow: 'hidden',
             }}
           >
-            {/* INNER content — uses min-width: max-content so its natural
-                width is "as wide as the URL needs". When that exceeds the
-                outer wrapper's width, the wrapper becomes scrollable. */}
+            {/* Background bar fill — relative to the row, not scrollable */}
             <div
               style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: `${pct}%`,
+                background: 'rgba(196,255,61,0.08)',
+                borderRadius: 6,
+                pointerEvents: 'none',
+                zIndex: 0,
+              }}
+            />
+
+            {/* Scrollable label area. flex: 1 + min-width: 0 lets it shrink
+                below content size; overflow-x: auto + the inner span's
+                white-space: nowrap make it a real horizontal scroll
+                container. */}
+            <div
+              className="admin-toplist-label-scroll"
+              style={{
+                flex: '1 1 0',
+                minWidth: 0,
+                overflowX: 'auto',
+                overflowY: 'hidden',
+                WebkitOverflowScrolling: 'touch',
                 position: 'relative',
-                padding: '6px 8px',
-                minWidth: 'max-content',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-                fontSize: 13,
-                whiteSpace: 'nowrap',
+                zIndex: 1,
               }}
             >
-              {/* Background bar fill */}
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: `${pct}%`,
-                  background: 'rgba(196,255,61,0.08)',
-                  borderRadius: 6,
-                  pointerEvents: 'none',
-                  zIndex: 0,
-                }}
-              />
-              {/* Label and count, foreground */}
-              <span style={{ position: 'relative', zIndex: 1 }} title={label}>
-                {label}
-              </span>
               <span
                 style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  marginLeft: 'auto',
-                  color: 'var(--text-3)',
-                  fontVariantNumeric: 'tabular-nums',
-                  flexShrink: 0,
+                  display: 'inline-block',
+                  whiteSpace: 'nowrap',
                 }}
+                title={label}
               >
-                {r.count.toLocaleString()}
+                {label}
               </span>
             </div>
+
+            {/* Count — pinned right, never scrolls */}
+            <span
+              style={{
+                position: 'relative',
+                zIndex: 1,
+                color: 'var(--text-3)',
+                fontVariantNumeric: 'tabular-nums',
+                flexShrink: 0,
+              }}
+            >
+              {r.count.toLocaleString()}
+            </span>
           </div>
         );
       })}
