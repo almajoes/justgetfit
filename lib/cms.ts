@@ -77,7 +77,7 @@ export async function getPage<T>(slug: string, fallback: T): Promise<T> {
   return data.content as T;
 }
 
-const HOME_HERO_DEFAULT: HomeHeroPage = {
+export const HOME_HERO_DEFAULT: HomeHeroPage = {
   pill_text: 'New article every Monday · Evidence-based',
   headline_part1: 'Stronger.',
   headline_accent: 'Every',
@@ -89,7 +89,7 @@ const HOME_HERO_DEFAULT: HomeHeroPage = {
   stats: [],
 };
 
-const ABOUT_DEFAULT: AboutPage = {
+export const ABOUT_DEFAULT: AboutPage = {
   pill_text: 'About Just Get Fit',
   headline_part1: 'Stronger.',
   headline_accent: 'Every',
@@ -101,7 +101,7 @@ const ABOUT_DEFAULT: AboutPage = {
   cta_secondary: { label: 'Read latest', url: '/articles' },
 };
 
-const SUBSCRIBE_DEFAULT: SubscribePage = {
+export const SUBSCRIBE_DEFAULT: SubscribePage = {
   pill_text: 'Free · One email per week',
   headline_part1: 'Get every article',
   headline_accent: 'in your inbox',
@@ -115,7 +115,7 @@ const SUBSCRIBE_DEFAULT: SubscribePage = {
   faqs: [],
 };
 
-const CONTACT_DEFAULT: ContactPage = {
+export const CONTACT_DEFAULT: ContactPage = {
   pill_text: 'Contact',
   headline_part1: 'Get in',
   headline_accent: 'touch',
@@ -137,7 +137,7 @@ const CONTACT_DEFAULT: ContactPage = {
  * component used on article pages too. Only the sections BELOW the hero are
  * managed here.
  */
-const APP_DEFAULT: AppPage = {
+export const APP_DEFAULT: AppPage = {
   how_it_works_eyebrow: 'How it works',
   how_it_works_heading: 'Three steps from inbox to action.',
   steps: [

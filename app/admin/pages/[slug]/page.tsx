@@ -1,6 +1,13 @@
 import { notFound } from 'next/navigation';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { PageEditor } from '@/components/admin/PageEditor';
+import {
+  HOME_HERO_DEFAULT,
+  ABOUT_DEFAULT,
+  SUBSCRIBE_DEFAULT,
+  CONTACT_DEFAULT,
+  APP_DEFAULT,
+} from '@/lib/cms';
 
 // Force fresh data on every request - never cache
 export const dynamic = 'force-dynamic';
@@ -8,6 +15,18 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 const ALLOWED = ['home-hero', 'about', 'subscribe', 'contact', 'app'] as const;
+
+// When a pages row doesn't exist yet, fall back to the same defaults the
+// public site uses. The editor renders the default values so admins start
+// from a populated baseline. First save creates the row via the API
+// route's upsert.
+const DEFAULTS: Record<typeof ALLOWED[number], unknown> = {
+  'home-hero': HOME_HERO_DEFAULT,
+  about: ABOUT_DEFAULT,
+  subscribe: SUBSCRIBE_DEFAULT,
+  contact: CONTACT_DEFAULT,
+  app: APP_DEFAULT,
+};
 
 export default async function AdminPageEditor({ params }: { params: { slug: string } }) {
   if (!ALLOWED.includes(params.slug as (typeof ALLOWED)[number])) notFound();
@@ -18,7 +37,10 @@ export default async function AdminPageEditor({ params }: { params: { slug: stri
     .eq('slug', params.slug)
     .maybeSingle();
 
-  if (!data) notFound();
+  // If no row exists, render with the same defaults the public site uses.
+  // First save will create the row via the API route's upsert.
+  const initialContent =
+    data?.content ?? DEFAULTS[params.slug as typeof ALLOWED[number]];
 
-  return <PageEditor slug={params.slug} initialContent={data.content} />;
+  return <PageEditor slug={params.slug} initialContent={initialContent} />;
 }
