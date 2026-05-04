@@ -78,6 +78,12 @@ export default async function SubscribersAdminPage() {
     confirmed: subscribers.filter((s) => s.status === 'confirmed').length,
     pending: subscribers.filter((s) => s.status === 'pending').length,
     unsubscribed: subscribers.filter((s) => s.status === 'unsubscribed').length,
+    // Hard-bounced subscribers — Resend webhook flips status to 'bounced' on
+    // permanent bounce (mailbox doesn't exist, etc.). Surfacing as a separate
+    // bucket so the math always reconciles: total = confirmed + pending +
+    // unsubscribed + bounced. Without this, bounces invisibly disappear from
+    // the confirmed count and the totals look off.
+    bounced: subscribers.filter((s) => s.status === 'bounced').length,
   };
 
   // Reset the subscribers counter — admin is looking at the page

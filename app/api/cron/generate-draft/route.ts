@@ -18,6 +18,48 @@ export async function GET(request: NextRequest) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
+  // Idempotency guard — prevent duplicate drafts when:
+  //   - Vercel cron fires late (e.g. 13:00 UTC scheduled, fires 14:15 UTC)
+  //     after a manual trigger had already generated this week's draft
+  //   - Vercel cron fires twice in the same window (rare platform glitch)
+  //   - An admin manually triggers the route twice in quick succession
+  //
+  // Window: 12 hours. Long enough to catch "manual + late cron" same-day,
+  // short enough that a legitimate retry next Monday isn't blocked by a
+  // stale draft from the previous week.
+  //
+  // Bypass: append ?force=1 to the URL to skip this check (useful when an
+  // admin DELIBERATELY wants a second draft, or wants to retry after a
+  // failed generation that produced a half-broken draft they'll delete).
+  const force = request.nextUrl.searchParams.get('force') === '1';
+  if (!force) {
+    const since = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+    const { count: recentDrafts, error: guardError } = await supabaseAdmin
+      .from('drafts')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', since);
+
+    if (guardError) {
+      // If we can't check, fail closed and don't generate — better to skip
+      // a draft than risk a duplicate.
+      console.error('[cron] Idempotency check failed:', guardError);
+      return NextResponse.json(
+        { ok: false, error: 'Idempotency check failed', message: guardError.message },
+        { status: 500 }
+      );
+    }
+
+    if ((recentDrafts ?? 0) > 0) {
+      console.log(`[cron] Skipping draft generation — ${recentDrafts} draft(s) created in the last 12h.`);
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        message: `A draft was already created in the last 12 hours (${recentDrafts} found). Use ?force=1 to bypass.`,
+        recentDraftCount: recentDrafts,
+      });
+    }
+  }
+
   const result: {
     ok: boolean;
     draftId?: string;
