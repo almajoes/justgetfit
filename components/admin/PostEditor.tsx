@@ -115,7 +115,7 @@ export function PostEditor({
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
           <p className="text-xs mb-1" style={{ color: 'var(--text-3)' }}>
-            Published {new Date(post.published_at).toLocaleDateString()}
+            Published {new Date(post.published_at).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
           <h1 className="text-3xl font-bold">Edit post</h1>
         </div>

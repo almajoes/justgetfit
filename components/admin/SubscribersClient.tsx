@@ -4,14 +4,14 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Subscriber } from '@/lib/supabase';
 
-type Stats = { total: number; confirmed: number; pending: number; unsubscribed: number; bounced: number };
+type Stats = { total: number; confirmed: number; pending: number; unsubscribed: number };
 
 const PAGE_SIZE = 50;
 
 export function SubscribersClient({ subscribers, stats }: { subscribers: Subscriber[]; stats: Stats }) {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'confirmed' | 'pending' | 'unsubscribed' | 'bounced'>('all');
+  const [filter, setFilter] = useState<'all' | 'confirmed' | 'pending' | 'unsubscribed'>('all');
   const [page, setPage] = useState(1);
   // Sort state — pick a column and direction
   const [sortKey, setSortKey] = useState<'email' | 'status' | 'group' | 'subscribed'>('subscribed');
@@ -218,7 +218,6 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
           { label: 'Confirmed', value: stats.confirmed, color: 'var(--neon)' },
           { label: 'Pending', value: stats.pending, color: '#ffb84d' },
           { label: 'Unsubscribed', value: stats.unsubscribed, color: 'var(--text-3)' },
-          { label: 'Bounced', value: stats.bounced, color: '#ff6b6b' },
         ].map((s) => (
           <div
             key={s.label}
@@ -260,7 +259,7 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
           width: '100%',
         }}
       >
-        {(['all', 'confirmed', 'pending', 'unsubscribed', 'bounced'] as const).map((f) => {
+        {(['all', 'confirmed', 'pending', 'unsubscribed'] as const).map((f) => {
           const count = f === 'all' ? stats.total : stats[f];
           return (
             <button
@@ -485,8 +484,6 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
               ? 'No unsubscribed subscribers yet — nobody has opted out.'
               : filter === 'pending'
               ? 'No pending subscribers — everyone has confirmed.'
-              : filter === 'bounced'
-              ? 'No bounced subscribers — Resend hasn\u2019t reported any hard bounces.'
               : 'No subscribers match.'}
           </div>
         )}
@@ -602,7 +599,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' });
 }
 
 const th: React.CSSProperties = { padding: '14px 16px', fontSize: 12, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' };

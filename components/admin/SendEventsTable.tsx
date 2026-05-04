@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { formatEastern } from '@/lib/format-date';
 
 /**
  * <SendEventsTable />
@@ -69,8 +70,10 @@ export function SendEventsTable({ events }: { events: EventRow[] }) {
   // ─── State ─────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('last_activity');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  // Default sort: alphabetical by email (asc). Easier to scan when looking
+  // for a specific subscriber. Click any column header to re-sort.
+  const [sortKey, setSortKey] = useState<SortKey>('email');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [page, setPage] = useState(1);
   const [expandedEmails, setExpandedEmails] = useState<Set<string>>(new Set());
 
@@ -288,7 +291,7 @@ function RecipientRow({ recipient, expanded, onToggle }: { recipient: Recipient;
           <StatusBadges r={r} />
         </td>
         <td style={{ ...td, color: 'var(--text-3)', fontSize: 12, whiteSpace: 'nowrap' }}>
-          {new Date(r.lastActivity).toLocaleString()}
+          {formatEastern(r.lastActivity)}
         </td>
         <td style={{ ...td, textAlign: 'right', color: 'var(--text-3)', fontSize: 12 }}>
           {r.events.length}
@@ -304,7 +307,7 @@ function RecipientRow({ recipient, expanded, onToggle }: { recipient: Recipient;
               {r.events.map((ev) => (
                 <div key={ev.id} style={{ display: 'contents' }}>
                   <div style={{ color: 'var(--text-3)', fontSize: 11, whiteSpace: 'nowrap' }}>
-                    {new Date(ev.occurred_at).toLocaleString()}
+                    {formatEastern(ev.occurred_at)}
                   </div>
                   <div>
                     <EventBadge type={ev.event_type} />

@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ResendPanel } from '@/components/admin/ResendPanel';
 import { SendEventsTable } from '@/components/admin/SendEventsTable';
 import { RefreshSendStatsButton } from '@/components/admin/RefreshSendStatsButton';
+import { formatEastern } from '@/lib/format-date';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -190,7 +191,7 @@ export default async function SendDetailPage({ params }: { params: { id: string 
         >
           {sendRow.kind}
         </span>
-        <span style={{ color: 'var(--text-3)', fontSize: 13 }}>{new Date(sendRow.sent_at).toLocaleString()}</span>
+        <span style={{ color: 'var(--text-3)', fontSize: 13 }}>{formatEastern(sendRow.sent_at)}</span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32, flexWrap: 'wrap' }}>

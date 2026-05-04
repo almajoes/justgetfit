@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import type { Post } from '@/lib/supabase';
+import { formatEasternDate } from '@/lib/format-date';
 
 // Force fresh data on every request - never cache
 export const dynamic = 'force-dynamic';
@@ -56,7 +57,7 @@ export default async function AdminPostsPage() {
                   <div className="font-medium truncate">{p.title}</div>
                   <div className="text-xs flex gap-2 mt-1" style={{ color: 'var(--text-3)' }}>
                     {p.category && <span style={{ color: 'var(--neon)' }}>{p.category}</span>}
-                    <span>{new Date(p.published_at).toLocaleDateString()}</span>
+                    <span>{formatEasternDate(p.published_at)}</span>
                   </div>
                 </div>
               </div>

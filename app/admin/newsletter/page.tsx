@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { TableHeaderTip } from '@/components/admin/TableHeaderTip';
 import { RefreshSendStatsButton } from '@/components/admin/RefreshSendStatsButton';
+import { formatEastern } from '@/lib/format-date';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -231,7 +232,7 @@ export default async function NewsletterAdminPage() {
               return (
                 <tr key={s.id} style={{ borderTop: '1px solid var(--line)' }}>
                   <td style={{ ...td, color: 'var(--text-3)', fontSize: 13 }}>
-                    {new Date(s.sent_at).toLocaleString()}
+                    {formatEastern(s.sent_at)}
                   </td>
                   <td style={td}>
                     <span

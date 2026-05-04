@@ -13,6 +13,7 @@ const STATUS_STYLES: Record<Draft['status'], { bg: string; color: string }> = {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('en-US', {
+    timeZone: 'America/New_York',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
