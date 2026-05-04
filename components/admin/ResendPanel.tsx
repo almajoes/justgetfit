@@ -59,9 +59,9 @@ export function ResendPanel({
       return;
     }
 
-    // Audience preview — server-side count of how many will actually be
-    // sent to after the 7-day-throttle filter. Shown in the confirm dialog
-    // so the user knows the real send size before firing.
+    // Picker is now throttle-aware — recipientCount IS the count being sent.
+    // No more preview API call (that introduced confusing double-filtering
+    // when subscribers crossed the 7-day boundary between page load and send).
     const audiencePayload =
       audience.mode === 'all'
         ? { mode: 'all' as const }
@@ -70,34 +70,8 @@ export function ResendPanel({
             subscriber_ids: resolved.recipients.map((r) => r.id),
           };
 
-    let willSend = recipientCount;
-    let throttled = 0;
-    try {
-      const previewBody =
-        audiencePayload.mode === 'all'
-          ? { mode: 'all' as const }
-          : { mode: 'list' as const, ids: audiencePayload.subscriber_ids };
-      const previewRes = await fetch('/api/admin/audience-preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(previewBody),
-      });
-      if (previewRes.ok) {
-        const preview: { selected: number; throttled: number; willSend: number } = await previewRes.json();
-        willSend = preview.willSend;
-        throttled = preview.throttled;
-      }
-    } catch {
-      // proceed without preview if it fails
-    }
-
     const confirmText =
-      throttled > 0
-        ? `Re-send "${postTitle}":\n\n` +
-          `${recipientCount.toLocaleString()} subscribers selected.\n` +
-          `${throttled.toLocaleString()} received a newsletter in the past 7 days and will be skipped (1-per-week throttle).\n\n` +
-          `Sending to ${willSend.toLocaleString()} subscribers.\n\nThis cannot be undone.`
-        : audience.mode === 'all'
+      audience.mode === 'all'
         ? `Re-send "${postTitle}" to all ${recipientCount.toLocaleString()} confirmed subscriber${recipientCount === 1 ? '' : 's'}?\n\nThis cannot be undone.`
         : `Re-send "${postTitle}" to ${recipientCount.toLocaleString()} selected subscriber${recipientCount === 1 ? '' : 's'}?\n\nThis cannot be undone.`;
     if (!confirm(confirmText)) return;
