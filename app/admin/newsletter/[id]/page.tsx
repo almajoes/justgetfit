@@ -113,17 +113,24 @@ export default async function SendDetailPage({ params }: { params: { id: string 
     byType[ev.event_type].push(ev);
   }
 
-  // ─── Bot-event filter ────────────────────────────────────────────────────
-  // Corporate email security gateways (Mimecast, Defender, Proofpoint, etc.)
-  // and Apple Mail Privacy Protection pre-fetch every link and image in
-  // incoming email, generating bogus click/open events. Filter those out so
-  // the stats reflect actual human engagement.
-  // See lib/email-event-filter.ts for the heuristic.
-  const botExclusions = computeBotExclusions(events);
+  // ─── Bot-event filter (DISABLED) ─────────────────────────────────────────
+  // Earlier attempt used a heuristic of "NULL user_agent + within 30s of
+  // delivery = bot pre-fetch." Turns out Resend does NOT populate user_agent
+  // on click events at all (every click has NULL), so that filter excluded
+  // 100% of clicks including legit ones. Filter is now a no-op (empty
+  // exclusion set) until we find a working heuristic.
+  //
+  // Real-world inflation problem still exists: corporate scanners (Defender,
+  // Mimecast, etc.) and APMP do generate ghost clicks. Without user_agent
+  // we can't distinguish them server-side. Future options: time-since-
+  // delivery heuristic alone (risky), filter clicks where the SAME recipient
+  // clicked >3 distinct URLs within 5 seconds (likely scanner pattern), or
+  // accept the inflation as a known limitation.
+  const botExclusions = new Set<string>();
   const filteredOpened = (byType.opened || []).filter((ev) => !botExclusions.has(eventKey(ev)));
   const filteredClicked = (byType.clicked || []).filter((ev) => !botExclusions.has(eventKey(ev)));
 
-  // Stash filtered counts for transparency banner below
+  // Stash filtered counts (will be 0 with filter disabled — banner won't render)
   const botFilteredOpenCount = (byType.opened || []).length - filteredOpened.length;
   const botFilteredClickCount = (byType.clicked || []).length - filteredClicked.length;
 
@@ -378,8 +385,9 @@ export default async function SendDetailPage({ params }: { params: { id: string 
       <p style={{ marginTop: 16, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
         Top clicked links is sorted by unique clickers (one row per recipient even if they clicked twice).
         The recipients table groups all events by email — click a row to expand the full event timeline for that person.
-        Open and click stats exclude suspected bot pre-fetches (corporate email scanners and Apple Mail Privacy
-        Protection) — events firing within 30 seconds of delivery with no user-agent.
+        Note: Openers and Clickers can be inflated by Apple Mail Privacy Protection (which auto-loads images)
+        and corporate email security scanners (Microsoft Defender, Mimecast, Proofpoint, etc. that fetch every
+        link to scan for malware). Treat both as soft trend signals.
       </p>
     </div>
   );
