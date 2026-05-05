@@ -113,13 +113,16 @@ export default async function SendDetailPage({ params }: { params: { id: string 
     byType[ev.event_type].push(ev);
   }
 
-  // ─── Bot-event filter (burst detection) ─────────────────────────────────
+  // ─── Bot-event filter (same-timestamp detection) ─────────────────────────
   // Corporate email security scanners (Defender, Mimecast, Proofpoint, etc.)
   // and Apple Mail Privacy Protection pre-fetch every link in incoming
-  // email, generating multiple click events per recipient at the exact same
-  // moment. The filter detects this pattern: any recipient with ≥2 events
-  // of the same type within 5 seconds → all events in that burst are bots.
-  // Single isolated clicks (real humans) are preserved.
+  // email by issuing parallel HTTP requests, which arrive at Resend's
+  // tracking endpoint in the same millisecond and end up with IDENTICAL
+  // occurred_at timestamps in the email_events table. The filter detects
+  // this: when the (email, type, timestamp) tuple appears 2+ times, those
+  // events are a parallel-fetch burst and are excluded. Real humans
+  // physically cannot click two links at the exact same millisecond, so
+  // single events at any given timestamp are kept.
   // See lib/email-event-filter.ts for full heuristic.
   const botExclusions = computeBotExclusions(events);
   const filteredOpened = (byType.opened || []).filter((ev) => !botExclusions.has(eventKey(ev)));
@@ -380,10 +383,10 @@ export default async function SendDetailPage({ params }: { params: { id: string 
       <p style={{ marginTop: 16, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
         Top clicked links is sorted by unique clickers (one row per recipient even if they clicked twice).
         The recipients table groups all events by email — click a row to expand the full event timeline for that person.
-        Bot-filter is active: when a recipient fires 2+ click or open events within 5 seconds (the signature
-        of corporate email security scanners pre-fetching every link, or Apple Mail Privacy Protection
-        pre-loading images), all events in that burst are excluded. Single isolated events from real humans
-        are preserved.
+        Bot-filter is active: when one recipient fires multiple click or open events at the exact same
+        millisecond, that&apos;s the signature of a corporate email security scanner or Apple Mail Privacy
+        Protection issuing parallel link fetches, and those events are excluded. Single isolated events
+        (real humans, who can&apos;t physically click two links in the same millisecond) are preserved.
       </p>
     </div>
   );

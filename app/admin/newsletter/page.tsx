@@ -96,8 +96,10 @@ export default async function NewsletterAdminPage() {
     }
 
     // Group events per send so we can bot-filter each send independently.
-    // computeBotExclusions detects per-recipient bursts (≥2 events of same
-    // type within 5 seconds = scanner pre-fetch).
+    // computeBotExclusions identifies events whose (email, type, occurred_at)
+    // tuple appears 2+ times — a recipient firing multiple events at the
+    // EXACT same millisecond, which is the signature of a scanner
+    // pre-fetching links in parallel.
     const eventsBySend = new Map<string, RawEvent[]>();
     for (const ev of allEvents) {
       if (!ev.send_id) continue;
@@ -232,13 +234,13 @@ export default async function NewsletterAdminPage() {
               <th style={th}>
                 <TableHeaderTip
                   label="Openers"
-                  tip="Unique recipients who opened the email at least once. Bot pre-fetches are filtered: any recipient with 2+ open events within 5 seconds is treated as a scanner burst and excluded. Real human opens (single events or events spaced apart) are preserved. Note: APMP can still inflate opens for real human reads."
+                  tip="Unique recipients who opened the email at least once. Bot pre-fetches are filtered: events sharing the exact same millisecond timestamp from one recipient are treated as a scanner burst and excluded. Single isolated events (real humans) are preserved. Note: Apple Mail Privacy Protection can still inflate opens for real human reads."
                 />
               </th>
               <th style={th}>
                 <TableHeaderTip
                   label="Clickers"
-                  tip="Unique recipients who clicked at least one link. Bot pre-fetches are filtered: any recipient with 2+ click events within 5 seconds is a scanner burst (Microsoft Defender, Mimecast, Proofpoint, etc. fetching every link to check for malware) and excluded. Real human clicks (one click, or clicks spaced apart) are preserved."
+                  tip="Unique recipients who clicked at least one link. Bot pre-fetches are filtered: events sharing the exact same millisecond timestamp from one recipient are a scanner pre-fetch (Microsoft Defender, Mimecast, Proofpoint, etc. fetching every link in parallel) and excluded. Single isolated clicks are preserved. Click-through rate is calculated against Delivered."
                 />
               </th>
               <th style={th}>
@@ -367,12 +369,12 @@ export default async function NewsletterAdminPage() {
       </p>
       <p style={{ marginTop: 12, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
         <strong style={{ color: 'var(--text-2)' }}>About Openers and Clickers:</strong>{' '}
-        Both stats filter out bot pre-fetches — any recipient with 2+ events of the same type within 5 seconds
-        is treated as a corporate email security scanner (Microsoft Defender, Mimecast, Proofpoint, Barracuda,
-        etc.) or Apple Mail Privacy Protection burst, and those events are excluded from the counts. Real
-        human activity (a single click, or clicks separated by more than 5 seconds) is preserved. Note that
-        APMP can still inflate Openers when a real user actually opens an email — treat Openers as a soft
-        trend signal. Clickers are highly reliable post-filter.
+        Both stats filter out bot pre-fetches — when a recipient fires multiple events at the exact same
+        millisecond, that&apos;s the signature of a corporate email security scanner (Microsoft Defender,
+        Mimecast, Proofpoint, Barracuda, etc.) or Apple Mail Privacy Protection issuing parallel fetches, and
+        those events are excluded. Single isolated events (real humans, who physically can&apos;t click two
+        links in the same millisecond) are preserved. Note: APMP can still inflate Openers when a real user
+        actually opens an email — treat Openers as a soft trend signal. Clickers are highly reliable post-filter.
       </p>
     </div>
   );
