@@ -6,6 +6,7 @@ import { SendEventsTable } from '@/components/admin/SendEventsTable';
 import { RefreshSendStatsButton } from '@/components/admin/RefreshSendStatsButton';
 import { formatEastern } from '@/lib/format-date';
 import { loadConfirmedSubscribers } from '@/lib/subscribers';
+import { computeBotExclusions, eventKey } from '@/lib/email-event-filter';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -112,9 +113,23 @@ export default async function SendDetailPage({ params }: { params: { id: string 
     byType[ev.event_type].push(ev);
   }
 
-  // For clicks: count unique clicks per URL
+  // ─── Bot-event filter ────────────────────────────────────────────────────
+  // Corporate email security gateways (Mimecast, Defender, Proofpoint, etc.)
+  // and Apple Mail Privacy Protection pre-fetch every link and image in
+  // incoming email, generating bogus click/open events. Filter those out so
+  // the stats reflect actual human engagement.
+  // See lib/email-event-filter.ts for the heuristic.
+  const botExclusions = computeBotExclusions(events);
+  const filteredOpened = (byType.opened || []).filter((ev) => !botExclusions.has(eventKey(ev)));
+  const filteredClicked = (byType.clicked || []).filter((ev) => !botExclusions.has(eventKey(ev)));
+
+  // Stash filtered counts for transparency banner below
+  const botFilteredOpenCount = (byType.opened || []).length - filteredOpened.length;
+  const botFilteredClickCount = (byType.clicked || []).length - filteredClicked.length;
+
+  // For clicks: count unique clicks per URL — using FILTERED clicks only.
   const clicksByUrl = new Map<string, { count: number; uniqueUsers: Set<string> }>();
-  for (const ev of byType.clicked || []) {
+  for (const ev of filteredClicked) {
     const url = ev.link_url || '(unknown URL)';
     if (!clicksByUrl.has(url)) clicksByUrl.set(url, { count: 0, uniqueUsers: new Set() });
     const entry = clicksByUrl.get(url)!;
@@ -138,18 +153,15 @@ export default async function SendDetailPage({ params }: { params: { id: string 
   const eventCount = (type: string) =>
     (byType[type] || []).filter((e) => e !== undefined).length;
 
-  // Unique-recipient counts (a single subscriber can fire multiple opened/clicked
-  // events; we only count distinct emails per type).
-  const uniqueByType = (type: string) =>
-    new Set((byType[type] || []).map((e) => e.email)).size;
-
   const intended = sendRow.recipient_count;
   const sentCount = eventCount('sent');                  // What Resend received
   const deliveredCount = eventCount('delivered');        // Landed in inbox
   const bouncedCount = eventCount('bounced');            // Hard bounce
   const complainedCount = eventCount('complained');      // Marked as spam
-  const openedCount = uniqueByType('opened');
-  const clickedCount = uniqueByType('clicked');
+  // Open/click counts use BOT-FILTERED events (excludes corporate-scanner
+  // and APMP pre-fetches that fire within 30s of delivery with no user agent).
+  const openedCount = new Set(filteredOpened.map((e) => e.email)).size;
+  const clickedCount = new Set(filteredClicked.map((e) => e.email)).size;
 
   // "Not received" = subscribers we tried to send to but who never got the email.
   // = (intended - actually-sent) + bounced. Includes both subscribers where the
@@ -236,12 +248,12 @@ export default async function SendDetailPage({ params }: { params: { id: string 
           accent={complainedCount > 0 ? '#ff6b6b' : undefined}
         />
         <Stat
-          label="Unique opens"
+          label="Unique openers"
           value={`${openedCount.toLocaleString()} · ${pct(openedCount, deliveredCount)}`}
           accent="var(--neon)"
         />
         <Stat
-          label="Unique clicks"
+          label="Unique clickers"
           value={`${clickedCount.toLocaleString()} · ${pct(clickedCount, deliveredCount)}`}
           accent="var(--neon)"
         />
@@ -270,6 +282,32 @@ export default async function SendDetailPage({ params }: { params: { id: string 
 
       {/* Standalone Complaints display removed — Complaints is now in the
           main stat grid above. */}
+
+      {/* Bot-filter transparency note. Only shown when filter actually kicked
+          in. Tells the user that some opens/clicks were excluded from the
+          stats above as suspected pre-fetches by corporate scanners or APMP. */}
+      {(botFilteredOpenCount > 0 || botFilteredClickCount > 0) && (
+        <div
+          style={{
+            marginBottom: 24,
+            padding: 12,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid var(--line)',
+            borderRadius: 10,
+            color: 'var(--text-3)',
+            fontSize: 12,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: 'var(--text-2)' }}>Bot-filter:</strong>{' '}
+          excluded {botFilteredOpenCount > 0 && `${botFilteredOpenCount.toLocaleString()} open${botFilteredOpenCount === 1 ? '' : 's'}`}
+          {botFilteredOpenCount > 0 && botFilteredClickCount > 0 && ' and '}
+          {botFilteredClickCount > 0 && `${botFilteredClickCount.toLocaleString()} click${botFilteredClickCount === 1 ? '' : 's'}`}
+          {' '}from the stats above. These fired within 30 seconds of delivery with no user-agent — the signature
+          of corporate email security scanners (Microsoft Defender, Mimecast, Proofpoint, etc.) or
+          Apple Mail Privacy Protection pre-fetching links. Real recipient activity is preserved.
+        </div>
+      )}
 
       {/* RE-SEND PANEL — only for kind='post' with an existing post */}
       {canResend && (
@@ -318,15 +356,30 @@ export default async function SendDetailPage({ params }: { params: { id: string 
         </div>
       )}
 
-      {/* Recipients view (grouped + filtered + paginated) */}
-      <div>
-        <h2 style={sectionH}>Recipients ({new Set(events.map((e) => e.email)).size.toLocaleString()})</h2>
-        <SendEventsTable events={events} />
-      </div>
+      {/* Recipients view (grouped + filtered + paginated). Pass FILTERED
+          events so the per-recipient counts and filter pills match the
+          stat cards above. Bot-filtered events (corporate-scanner/APMP
+          pre-fetches) are excluded from this view; the small bot-filter
+          note above tells the user how many were dropped. Raw events are
+          still in the email_events table if needed for diagnostic SQL. */}
+      {(() => {
+        const filteredEvents = events.filter((ev) => {
+          if (ev.event_type !== 'opened' && ev.event_type !== 'clicked') return true;
+          return !botExclusions.has(eventKey(ev));
+        });
+        return (
+          <div>
+            <h2 style={sectionH}>Recipients ({new Set(filteredEvents.map((e) => e.email)).size.toLocaleString()})</h2>
+            <SendEventsTable events={filteredEvents} />
+          </div>
+        );
+      })()}
 
       <p style={{ marginTop: 16, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
         Top clicked links is sorted by unique clickers (one row per recipient even if they clicked twice).
         The recipients table groups all events by email — click a row to expand the full event timeline for that person.
+        Open and click stats exclude suspected bot pre-fetches (corporate email scanners and Apple Mail Privacy
+        Protection) — events firing within 30 seconds of delivery with no user-agent.
       </p>
     </div>
   );

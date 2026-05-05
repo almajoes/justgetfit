@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { TableHeaderTip } from '@/components/admin/TableHeaderTip';
 import { RefreshSendStatsButton } from '@/components/admin/RefreshSendStatsButton';
 import { formatEastern } from '@/lib/format-date';
+import { computeBotExclusions, eventKey } from '@/lib/email-event-filter';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -61,19 +62,26 @@ export default async function NewsletterAdminPage() {
     // on event volume per send) get silently truncated and show 0 stats
     // instead of the real values, causing discrepancies with the detail page
     // which queries one send_id at a time.
+    //
+    // Pull user_agent + occurred_at as well — needed for the per-send bot
+    // filter (excludes corporate-scanner and APMP pre-fetches from open/click
+    // counts). See lib/email-event-filter.ts.
     const PAGE_SIZE = 1000;
     const sendIds = sends.map((s) => s.id);
-    const allEvents: { send_id: string | null; event_type: string; email: string }[] = [];
+    type RawEvent = {
+      send_id: string | null;
+      event_type: string;
+      email: string;
+      user_agent: string | null;
+      occurred_at: string;
+    };
+    const allEvents: RawEvent[] = [];
     let from = 0;
     while (true) {
       const { data: page, error } = await supabaseAdmin
         .from('email_events')
-        .select('send_id, event_type, email, id')
+        .select('send_id, event_type, email, id, user_agent, occurred_at')
         .in('send_id', sendIds)
-        // Pagination requires a stable order. Without explicit .order(),
-        // Postgres can return rows in any order across pages, causing
-        // skipped or duplicated rows. id is unique so it's a perfect
-        // pagination key.
         .order('id', { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
       if (error) {
@@ -81,31 +89,44 @@ export default async function NewsletterAdminPage() {
         break;
       }
       const batch = page || [];
-      for (const ev of batch) allEvents.push(ev as typeof allEvents[number]);
+      for (const ev of batch) allEvents.push(ev as RawEvent);
       if (batch.length < PAGE_SIZE) break;
       from += PAGE_SIZE;
       if (from > 100000) break; // safety bail
     }
 
+    // Group events per send so we can bot-filter each send independently.
+    // (computeBotExclusions needs to compare opens/clicks against the
+    // delivered timestamp from the SAME send for the SAME recipient.)
+    const eventsBySend = new Map<string, RawEvent[]>();
     for (const ev of allEvents) {
       if (!ev.send_id) continue;
-      if (!statsBySend[ev.send_id]) {
-        statsBySend[ev.send_id] = {
-          sent: 0,
-          delivered: 0,
-          bounced: 0,
-          complained: 0,
-          opened: new Set(),
-          clicked: new Set(),
-        };
+      if (!eventsBySend.has(ev.send_id)) eventsBySend.set(ev.send_id, []);
+      eventsBySend.get(ev.send_id)!.push(ev);
+    }
+
+    for (const [sendId, evs] of eventsBySend.entries()) {
+      const exclusions = computeBotExclusions(evs);
+      statsBySend[sendId] = {
+        sent: 0,
+        delivered: 0,
+        bounced: 0,
+        complained: 0,
+        opened: new Set(),
+        clicked: new Set(),
+      };
+      const s = statsBySend[sendId];
+      for (const ev of evs) {
+        if (ev.event_type === 'sent') s.sent += 1;
+        else if (ev.event_type === 'delivered') s.delivered += 1;
+        else if (ev.event_type === 'bounced') s.bounced += 1;
+        else if (ev.event_type === 'complained') s.complained += 1;
+        else if (ev.event_type === 'opened') {
+          if (!exclusions.has(eventKey(ev))) s.opened.add(ev.email);
+        } else if (ev.event_type === 'clicked') {
+          if (!exclusions.has(eventKey(ev))) s.clicked.add(ev.email);
+        }
       }
-      const s = statsBySend[ev.send_id];
-      if (ev.event_type === 'sent') s.sent += 1;
-      else if (ev.event_type === 'delivered') s.delivered += 1;
-      else if (ev.event_type === 'bounced') s.bounced += 1;
-      else if (ev.event_type === 'complained') s.complained += 1;
-      else if (ev.event_type === 'opened') s.opened.add(ev.email);
-      else if (ev.event_type === 'clicked') s.clicked.add(ev.email);
     }
   }
 
@@ -210,14 +231,14 @@ export default async function NewsletterAdminPage() {
               </th>
               <th style={th}>
                 <TableHeaderTip
-                  label="Opens"
-                  tip="Unique recipients who opened the email at least once. Tracked via a 1×1 pixel — Apple Mail Privacy Protection inflates this number by pre-loading images. Treat as a soft trend signal."
+                  label="Openers"
+                  tip="Unique recipients who opened the email at least once. Bot pre-fetches (corporate scanners and Apple Mail Privacy Protection firing within 30 seconds of delivery) are excluded. Real opens still inflated by APMP if the user actually opens the email — treat as a soft trend signal."
                 />
               </th>
               <th style={th}>
                 <TableHeaderTip
-                  label="Clicks"
-                  tip="Unique recipients who clicked at least one link in the email. Reliable — fires only on real clicks. Click-through rate is calculated against Delivered."
+                  label="Clickers"
+                  tip="Unique recipients who clicked at least one link in the email. Bot pre-fetches (corporate email security scanners like Microsoft Defender, Mimecast, Proofpoint that fire within 30 seconds of delivery with no user-agent) are excluded. Click-through rate is calculated against Delivered."
                 />
               </th>
               <th style={th}>
@@ -345,10 +366,14 @@ export default async function NewsletterAdminPage() {
         button on each send detail will pick up the latest events.
       </p>
       <p style={{ marginTop: 12, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
-        Open rates are tracked via a 1×1 pixel. Apple Mail Privacy Protection (default on iPhone) pre-loads
-        all images including this pixel — so opens get counted even when the user didn&apos;t actually open the
-        email. Treat opens as a soft trend signal, not absolute truth. Click rates are reliable — they fire
-        only on real clicks.
+        <strong style={{ color: 'var(--text-2)' }}>About Openers and Clickers:</strong>{' '}
+        Both stats exclude suspected bot pre-fetches — events that fire within 30 seconds of delivery with no
+        user-agent are filtered out. This catches corporate email security scanners (Microsoft Defender,
+        Mimecast, Proofpoint, Barracuda, etc.) that fetch every link to scan for malware, and Apple Mail Privacy
+        Protection pre-fetches. Real human activity (clicks/opens after the 30-second window or with a real
+        user-agent) is preserved. Note that APMP can still inflate Openers when a real user actually opens an
+        email after the 30-second window, since APMP loads images at that point too — treat Openers as a soft
+        trend signal, not absolute truth. Clickers are more reliable post-filter.
       </p>
     </div>
   );
