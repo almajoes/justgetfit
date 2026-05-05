@@ -113,24 +113,19 @@ export default async function SendDetailPage({ params }: { params: { id: string 
     byType[ev.event_type].push(ev);
   }
 
-  // ─── Bot-event filter (DISABLED) ─────────────────────────────────────────
-  // Earlier attempt used a heuristic of "NULL user_agent + within 30s of
-  // delivery = bot pre-fetch." Turns out Resend does NOT populate user_agent
-  // on click events at all (every click has NULL), so that filter excluded
-  // 100% of clicks including legit ones. Filter is now a no-op (empty
-  // exclusion set) until we find a working heuristic.
-  //
-  // Real-world inflation problem still exists: corporate scanners (Defender,
-  // Mimecast, etc.) and APMP do generate ghost clicks. Without user_agent
-  // we can't distinguish them server-side. Future options: time-since-
-  // delivery heuristic alone (risky), filter clicks where the SAME recipient
-  // clicked >3 distinct URLs within 5 seconds (likely scanner pattern), or
-  // accept the inflation as a known limitation.
-  const botExclusions = new Set<string>();
+  // ─── Bot-event filter (burst detection) ─────────────────────────────────
+  // Corporate email security scanners (Defender, Mimecast, Proofpoint, etc.)
+  // and Apple Mail Privacy Protection pre-fetch every link in incoming
+  // email, generating multiple click events per recipient at the exact same
+  // moment. The filter detects this pattern: any recipient with ≥2 events
+  // of the same type within 5 seconds → all events in that burst are bots.
+  // Single isolated clicks (real humans) are preserved.
+  // See lib/email-event-filter.ts for full heuristic.
+  const botExclusions = computeBotExclusions(events);
   const filteredOpened = (byType.opened || []).filter((ev) => !botExclusions.has(eventKey(ev)));
   const filteredClicked = (byType.clicked || []).filter((ev) => !botExclusions.has(eventKey(ev)));
 
-  // Stash filtered counts (will be 0 with filter disabled — banner won't render)
+  // Stash filtered counts for transparency banner below
   const botFilteredOpenCount = (byType.opened || []).length - filteredOpened.length;
   const botFilteredClickCount = (byType.clicked || []).length - filteredClicked.length;
 
@@ -385,9 +380,10 @@ export default async function SendDetailPage({ params }: { params: { id: string 
       <p style={{ marginTop: 16, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
         Top clicked links is sorted by unique clickers (one row per recipient even if they clicked twice).
         The recipients table groups all events by email — click a row to expand the full event timeline for that person.
-        Note: Openers and Clickers can be inflated by Apple Mail Privacy Protection (which auto-loads images)
-        and corporate email security scanners (Microsoft Defender, Mimecast, Proofpoint, etc. that fetch every
-        link to scan for malware). Treat both as soft trend signals.
+        Bot-filter is active: when a recipient fires 2+ click or open events within 5 seconds (the signature
+        of corporate email security scanners pre-fetching every link, or Apple Mail Privacy Protection
+        pre-loading images), all events in that burst are excluded. Single isolated events from real humans
+        are preserved.
       </p>
     </div>
   );

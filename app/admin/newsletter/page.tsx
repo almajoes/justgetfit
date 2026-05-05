@@ -95,10 +95,9 @@ export default async function NewsletterAdminPage() {
       if (from > 100000) break; // safety bail
     }
 
-    // Group events per send. Bot-filter is currently disabled (heuristic
-    // depended on user_agent which Resend doesn't populate on click events),
-    // so we just tally everything. See /admin/newsletter/[id] for full
-    // explanation.
+    // Group events per send so we can bot-filter each send independently.
+    // computeBotExclusions detects per-recipient bursts (≥2 events of same
+    // type within 5 seconds = scanner pre-fetch).
     const eventsBySend = new Map<string, RawEvent[]>();
     for (const ev of allEvents) {
       if (!ev.send_id) continue;
@@ -107,8 +106,7 @@ export default async function NewsletterAdminPage() {
     }
 
     for (const [sendId, evs] of eventsBySend.entries()) {
-      // Filter disabled — empty exclusion set means every event counts.
-      const exclusions = new Set<string>();
+      const exclusions = computeBotExclusions(evs);
       statsBySend[sendId] = {
         sent: 0,
         delivered: 0,
@@ -234,13 +232,13 @@ export default async function NewsletterAdminPage() {
               <th style={th}>
                 <TableHeaderTip
                   label="Openers"
-                  tip="Unique recipients who opened the email at least once. Tracked via a 1×1 pixel — Apple Mail Privacy Protection inflates this number by pre-loading images. Treat as a soft trend signal."
+                  tip="Unique recipients who opened the email at least once. Bot pre-fetches are filtered: any recipient with 2+ open events within 5 seconds is treated as a scanner burst and excluded. Real human opens (single events or events spaced apart) are preserved. Note: APMP can still inflate opens for real human reads."
                 />
               </th>
               <th style={th}>
                 <TableHeaderTip
                   label="Clickers"
-                  tip="Unique recipients who clicked at least one link. Note: corporate email security scanners (Microsoft Defender, Mimecast, Proofpoint, etc.) fetch every link to scan for malware, which can inflate this count for corporate-domain recipients. Click-through rate is calculated against Delivered."
+                  tip="Unique recipients who clicked at least one link. Bot pre-fetches are filtered: any recipient with 2+ click events within 5 seconds is a scanner burst (Microsoft Defender, Mimecast, Proofpoint, etc. fetching every link to check for malware) and excluded. Real human clicks (one click, or clicks spaced apart) are preserved."
                 />
               </th>
               <th style={th}>
@@ -368,12 +366,13 @@ export default async function NewsletterAdminPage() {
         button on each send detail will pick up the latest events.
       </p>
       <p style={{ marginTop: 12, fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6 }}>
-        Open rates are tracked via a 1×1 pixel. Apple Mail Privacy Protection (default on iPhone) pre-loads
-        all images including this pixel — so opens get counted even when the user didn&apos;t actually open the
-        email. Click counts can also be inflated by corporate email security scanners (Microsoft Defender,
-        Mimecast, Proofpoint, Barracuda, etc.) which fetch every link in incoming email to scan for malware,
-        recording one &ldquo;click&rdquo; per link per scanned email. Treat both Openers and Clickers as soft
-        trend signals — they&apos;re directionally useful but not absolute truth.
+        <strong style={{ color: 'var(--text-2)' }}>About Openers and Clickers:</strong>{' '}
+        Both stats filter out bot pre-fetches — any recipient with 2+ events of the same type within 5 seconds
+        is treated as a corporate email security scanner (Microsoft Defender, Mimecast, Proofpoint, Barracuda,
+        etc.) or Apple Mail Privacy Protection burst, and those events are excluded from the counts. Real
+        human activity (a single click, or clicks separated by more than 5 seconds) is preserved. Note that
+        APMP can still inflate Openers when a real user actually opens an email — treat Openers as a soft
+        trend signal. Clickers are highly reliable post-filter.
       </p>
     </div>
   );

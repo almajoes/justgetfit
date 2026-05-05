@@ -3,73 +3,78 @@
  *
  * Why this exists:
  * Corporate email security gateways (Mimecast, Proofpoint, Microsoft Defender
- * for Office 365, Barracuda, etc.) and mail-client privacy features
- * (Apple Mail Privacy Protection) pre-fetch every link and image in incoming
- * email as a security/privacy measure. Resend's tracking system records each
- * pre-fetch as a click or open event because it's indistinguishable from a
- * real one at the HTTP level. Result: a single corporate recipient generates
- * multiple "click" events on every link in the email at the exact same
- * millisecond, and an iPhone APMP user generates an "open" event the moment
- * the message lands in the inbox.
+ * for Office 365, Barracuda, etc.) and mail-client privacy features (Apple
+ * Mail Privacy Protection) auto-fetch every link and image in incoming email
+ * as a security/privacy measure. Resend's tracking system records each
+ * pre-fetch as a click or open event because at the HTTP level it's
+ * indistinguishable from a real one. Result: a single corporate recipient
+ * generates click events on every link in the email at the same second.
  *
- * Heuristic (industry-standard for marketing tools that bother to filter):
- *   An event is "likely bot" if:
- *     - user_agent is null/empty AND
- *     - it occurred within 30 seconds of the recipient's `delivered` event
+ * Heuristic: BURST DETECTION
+ *   For each recipient, look at all their events of a given type (clicked or
+ *   opened). Sort by occurred_at. If ANY pair of consecutive events for the
+ *   same type from the same recipient is within 5 seconds, treat ALL events
+ *   of that type from that recipient as a bot burst and exclude them.
  *
- * Real humans receive an email, the inbox notification fires, they have to
- * actually open the message and read it before clicking — that's never under
- * 30 seconds. Server-side pre-fetchers fire within milliseconds of delivery.
+ * Rationale:
+ *   - Real humans click ONE link in an email and move on, or click 2-3 links
+ *     spread out over minutes/hours of reading.
+ *   - Scanners click EVERY link in milliseconds to seconds.
+ *   - A recipient with a single isolated click → real human, KEEP.
+ *   - A recipient with 5 clicks at 14:25:25.844 → scanner, EXCLUDE all 5.
+ *   - A recipient with 2 clicks 90 seconds apart → real human, KEEP both.
+ *   - A recipient with 2 clicks 3 seconds apart → likely scanner, EXCLUDE.
  *
- * This filter is conservative — it only excludes events that have BOTH the
- * NULL user-agent signature AND the sub-30s timing. A real click that
- * happens to be missing user-agent (rare) but later than 30s is preserved.
- * A real click within 30s but with a real user-agent (also rare but possible)
- * is preserved.
+ * The filter is intentionally per-recipient per-event-type: a recipient
+ * could have legit clicks AND have their email scanned (their scanner
+ * pre-fetched, then they later opened and clicked for real). In that case
+ * the early burst gets all flagged. False negative is preferable to false
+ * positive — we'd rather miss some real clicks than count scanner noise as
+ * engagement.
  */
 
-const BOT_WINDOW_MS = 30 * 1000;
+const BURST_WINDOW_MS = 5 * 1000;
 
 type FilterableEvent = {
   email: string;
   event_type: string;
-  user_agent: string | null;
   occurred_at: string;
 };
 
 /**
- * Returns the set of (email, event_type) pairs that should be EXCLUDED from
- * stats. Compute once per send, then check `excluded.has(makeKey(event))` to
- * filter individual events.
- *
- * Per-recipient logic: for each subscriber, find the earliest `delivered`
- * timestamp; mark any opened/clicked events from that subscriber that fired
- * within 30s AND with a NULL user agent as bot events.
+ * Returns the set of event keys (email|type|occurred_at) that should be
+ * EXCLUDED from stats. Compute once per send/scope, then check
+ * `excluded.has(eventKey(event))` to filter individual events.
  */
 export function computeBotExclusions(events: FilterableEvent[]): Set<string> {
-  // Earliest delivered timestamp per recipient
-  const deliveredAt = new Map<string, number>();
+  // Group events by (email, event_type), but only for opens and clicks.
+  // Sent/delivered/bounced/complained are server-side events from Resend's
+  // SMTP layer and aren't subject to this kind of inflation.
+  const grouped = new Map<string, FilterableEvent[]>();
   for (const ev of events) {
-    if (ev.event_type !== 'delivered') continue;
-    const t = new Date(ev.occurred_at).getTime();
-    const existing = deliveredAt.get(ev.email);
-    if (existing === undefined || t < existing) {
-      deliveredAt.set(ev.email, t);
-    }
+    if (ev.event_type !== 'opened' && ev.event_type !== 'clicked') continue;
+    const k = `${ev.email}|${ev.event_type}`;
+    if (!grouped.has(k)) grouped.set(k, []);
+    grouped.get(k)!.push(ev);
   }
 
   const excluded = new Set<string>();
-  for (const ev of events) {
-    if (ev.event_type !== 'opened' && ev.event_type !== 'clicked') continue;
-    if (ev.user_agent && ev.user_agent.trim() !== '') continue; // real user-agent → keep
-    const delivered = deliveredAt.get(ev.email);
-    if (delivered === undefined) continue; // no delivered event → can't compare → keep
-    const eventTime = new Date(ev.occurred_at).getTime();
-    if (eventTime - delivered < BOT_WINDOW_MS) {
-      // Mark this specific event as bot. Use a per-event key (email + type +
-      // timestamp) so we can filter individual rows, not all of a recipient's
-      // events.
-      excluded.add(eventKey(ev));
+  for (const [, evs] of grouped) {
+    if (evs.length < 2) continue; // single events can't be a burst
+    // Sort by occurred_at ascending
+    const sorted = evs
+      .map((e) => ({ ev: e, t: new Date(e.occurred_at).getTime() }))
+      .sort((a, b) => a.t - b.t);
+    // Detect burst: any consecutive pair within BURST_WINDOW_MS
+    let isBurst = false;
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].t - sorted[i - 1].t <= BURST_WINDOW_MS) {
+        isBurst = true;
+        break;
+      }
+    }
+    if (isBurst) {
+      for (const { ev } of sorted) excluded.add(eventKey(ev));
     }
   }
   return excluded;
@@ -77,13 +82,4 @@ export function computeBotExclusions(events: FilterableEvent[]): Set<string> {
 
 export function eventKey(ev: { email: string; event_type: string; occurred_at: string }): string {
   return `${ev.email}|${ev.event_type}|${ev.occurred_at}`;
-}
-
-/**
- * Filter an array of events, removing bot pre-fetches. Returns a new array.
- * Pure function — does not modify the input.
- */
-export function filterBotEvents<T extends FilterableEvent>(events: T[]): T[] {
-  const excluded = computeBotExclusions(events);
-  return events.filter((ev) => !excluded.has(eventKey(ev)));
 }
