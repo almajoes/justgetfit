@@ -8,7 +8,7 @@ export const metadata = {
   description: 'Terms and conditions for using JustGetFit and the JustGetFit app.',
 };
 
-const LAST_UPDATED = 'May 2, 2026';
+const LAST_UPDATED = 'May 5, 2026';
 
 /**
  * Terms of Service page
@@ -19,8 +19,8 @@ const LAST_UPDATED = 'May 2, 2026';
  * tools offered under the JustGetFit brand (e.g., app.justgetfit.org). Uses
  * "Services" as a defined umbrella term so we don't need separate ToS docs
  * per surface. If the app ever has materially different terms (e.g., paid
- * tiers, in-app purchases, AI-generated content disclaimers specific to the
- * plan generator), add a dedicated section here rather than splitting docs.
+ * tiers, in-app purchases, generated-plan disclaimers specific to the plan
+ * generator), add a dedicated section here rather than splitting docs.
  *
  * NOT legal advice. Have a lawyer review before relying on this for serious
  * disputes.
@@ -120,17 +120,19 @@ export default async function TermsPage() {
             and consult a qualified professional.</strong>
           </p>
 
-          <h2>5. AI-generated content</h2>
+          <h2>5. Generated and personalized content</h2>
           <p>
-            Some Services (such as the planned app) may use AI to generate workout plans,
-            meal suggestions, or other personalized content. AI-generated content can contain
-            errors, omissions, or recommendations that aren&apos;t suitable for your situation.
-            We do our best to validate output, but we cannot guarantee accuracy, completeness,
-            or appropriateness for any specific purpose.
+            Some Services (such as the planned app) generate workout plans, meal suggestions,
+            or other personalized content based on the information you provide. This output
+            is produced by our team and our content systems and can contain errors, omissions,
+            or recommendations that aren&apos;t suitable for your situation. We do our best to
+            review and validate output, but we cannot guarantee accuracy, completeness, or
+            appropriateness for any specific purpose.
           </p>
           <p>
-            Use AI-generated content as a starting point, not a final authority. Apply common
-            sense, listen to your body, and consult a qualified professional when in doubt.
+            Use generated plans and recommendations as a starting point, not a final authority.
+            Apply common sense, listen to your body, and consult a qualified professional when
+            in doubt.
           </p>
 
           <h2>6. Affiliate disclosure and advertising</h2>
@@ -171,8 +173,8 @@ export default async function TermsPage() {
           <h2>9. Our intellectual property</h2>
           <p>
             All content provided through the Services — articles, images (where original or
-            licensed), illustrations, logos, branding, software, and AI prompts and
-            workflows — is owned by JustGetFit or its licensors and is protected by
+            licensed), illustrations, logos, branding, software, and editorial workflows —
+            is owned by JustGetFit or its licensors and is protected by
             copyright, trademark, and other intellectual property laws. You may:
           </p>
           <ul>
@@ -183,10 +185,10 @@ export default async function TermsPage() {
           </ul>
           <p>You may not:</p>
           <ul>
-            <li>Republish full articles or AI-generated plans on your own site without permission</li>
+            <li>Republish full articles or generated plans on your own site without permission</li>
             <li>Use our content commercially without a license</li>
             <li>Remove or alter copyright notices, attribution, or branding</li>
-            <li>Train AI/ML models on our content without explicit written permission</li>
+            <li>Use our content to train automated content-generation or model systems without explicit written permission</li>
             <li>Reproduce, sell, or redistribute any part of the Services as your own</li>
           </ul>
           <p>
@@ -205,7 +207,7 @@ export default async function TermsPage() {
             <li>The content will be error-free or always up to date</li>
             <li>Any specific result (fitness, health, weight, etc.) will be achieved</li>
             <li>External links will continue to work or remain accurate</li>
-            <li>AI-generated content will be suitable for your specific situation</li>
+            <li>Generated plans or recommendations will be suitable for your specific situation</li>
           </ul>
 
           <h2>11. Limitation of liability</h2>
