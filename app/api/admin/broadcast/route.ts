@@ -95,6 +95,11 @@ export async function POST(req: NextRequest) {
         .from('subscribers')
         .select('id')
         .eq('status', 'confirmed')
+        // Stable pagination requires explicit ordering. Without .order(),
+        // Postgres returns rows in any order across pages — same bug as
+        // the morning subscriber pagination fix. Broadcasts to >1000 subs
+        // would silently skip recipients.
+        .order('id', { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) {
         return NextResponse.json(

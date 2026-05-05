@@ -68,8 +68,13 @@ export default async function NewsletterAdminPage() {
     while (true) {
       const { data: page, error } = await supabaseAdmin
         .from('email_events')
-        .select('send_id, event_type, email')
+        .select('send_id, event_type, email, id')
         .in('send_id', sendIds)
+        // Pagination requires a stable order. Without explicit .order(),
+        // Postgres can return rows in any order across pages, causing
+        // skipped or duplicated rows. id is unique so it's a perfect
+        // pagination key.
+        .order('id', { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
       if (error) {
         console.error('[send log] event pagination failed:', error.message);

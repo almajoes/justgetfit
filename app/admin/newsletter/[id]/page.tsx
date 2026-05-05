@@ -5,6 +5,7 @@ import { ResendPanel } from '@/components/admin/ResendPanel';
 import { SendEventsTable } from '@/components/admin/SendEventsTable';
 import { RefreshSendStatsButton } from '@/components/admin/RefreshSendStatsButton';
 import { formatEastern } from '@/lib/format-date';
+import { loadConfirmedSubscribers } from '@/lib/subscribers';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -38,45 +39,18 @@ type EventRow = {
   occurred_at: string;
 };
 
-type SubRow = {
-  id: string;
-  email: string;
-  source: string | null;
-  subscribed_at: string;
-};
+type SubRow = import('@/lib/subscribers').SubscriberForPicker;
 
 function pct(n: number, d: number): string {
   if (!d) return '—';
   return `${((n / d) * 100).toFixed(1)}%`;
 }
 
-/**
- * Pull all confirmed subscribers for the AudiencePicker inside ResendPanel.
- * Same paging strategy as /admin/broadcast/page.tsx — Supabase REST default
- * limit is 1,000 rows so we page with .range().
- *
- * Only called when the send is `kind='post'` (broadcasts can't be re-sent
- * via this endpoint — their content lives in newsletter_sends, not posts).
- */
-async function loadConfirmedSubscribers(): Promise<SubRow[]> {
-  const PAGE = 1000;
-  let all: SubRow[] = [];
-  let from = 0;
-  while (true) {
-    const { data } = await supabaseAdmin
-      .from('subscribers')
-      .select('id, email, source, subscribed_at')
-      .eq('status', 'confirmed')
-      .order('subscribed_at', { ascending: false })
-      .range(from, from + PAGE - 1);
-    const batch = (data as SubRow[]) || [];
-    all = all.concat(batch);
-    if (batch.length < PAGE) break;
-    from += PAGE;
-    if (from > 200000) break; // safety bail
-  }
-  return all;
-}
+// Subscribers for the ResendPanel come from the centralized
+// loadConfirmedSubscribers() helper in lib/subscribers, which returns the
+// last_sent_at field that the picker's 7-day throttle filter requires.
+// Without that field, the throttle filter silently no-ops and the picker
+// shows the full unfiltered audience.
 
 export default async function SendDetailPage({ params }: { params: { id: string } }) {
   // Fetch the send + post info in one query (also pull post_id explicitly so
@@ -96,13 +70,40 @@ export default async function SendDetailPage({ params }: { params: { id: string 
   const subscribers: SubRow[] =
     sendRow.kind === 'post' && sendRow.post_id ? await loadConfirmedSubscribers() : [];
 
-  // Fetch all events for this send, newest first
-  const { data: eventsData } = await supabaseAdmin
-    .from('email_events')
-    .select('id, event_type, email, link_url, user_agent, occurred_at')
-    .eq('send_id', params.id)
-    .order('occurred_at', { ascending: false });
-  const events = (eventsData as EventRow[]) || [];
+  // Fetch all events for this send. Must paginate — Supabase silently caps
+  // single queries at 1,000 rows by default, and a single 1k-subscriber send
+  // generates ~2-3k events (1k sent + delivered + bounced + opens + clicks).
+  // Without pagination, the detail page would silently truncate and show
+  // ~46% of the real numbers (verified May 4 2026 — earlier same bug
+  // affected the send-log table query, fixed there earlier in the day, but
+  // we missed this query in the detail page).
+  const EVENT_PAGE = 1000;
+  const events: EventRow[] = [];
+  {
+    let from = 0;
+    while (true) {
+      const { data: page, error } = await supabaseAdmin
+        .from('email_events')
+        .select('id, event_type, email, link_url, user_agent, occurred_at')
+        .eq('send_id', params.id)
+        // Stable ordering with id tie-breaker. occurred_at alone is not unique
+        // — multiple events fire at the same millisecond during a send, and
+        // pagination over a non-unique sort key skips/duplicates rows across
+        // page boundaries (same bug we hit on subscriber pagination earlier).
+        .order('occurred_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, from + EVENT_PAGE - 1);
+      if (error) {
+        console.error('[send detail] event pagination failed:', error.message);
+        break;
+      }
+      const batch = (page as EventRow[]) || [];
+      for (const ev of batch) events.push(ev);
+      if (batch.length < EVENT_PAGE) break;
+      from += EVENT_PAGE;
+      if (from > 100000) break; // safety bail
+    }
+  }
 
   // Group by event type for the breakdown
   const byType: Record<string, EventRow[]> = {};

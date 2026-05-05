@@ -36,6 +36,7 @@ export default async function ArticlesPage({
       .from('posts')
       .select('*', { count: 'exact' })
       .order('published_at', { ascending: false })
+      .order('id', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1),
     getCategories(),
     getCategoryCounts(),

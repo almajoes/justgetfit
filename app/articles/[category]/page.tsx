@@ -41,6 +41,7 @@ export default async function CategoryPage({
       .select('*', { count: 'exact' })
       .eq('category', params.category)
       .order('published_at', { ascending: false })
+      .order('id', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1),
     getCategories(),
     supabase.from('posts').select('category'),
