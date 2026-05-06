@@ -908,6 +908,15 @@ select option {
   .site-nav .nav-menu-desktop { display: none; }
   .site-nav .nav-mobile-actions { display: flex; }
   .hero { padding: 60px 20px 40px; }
+  /* Keep hero CTAs on a single row on mobile — tighten padding and gap so
+     "Read the latest" + "Browse categories" fit without wrapping. */
+  .hero .ctas { flex-wrap: nowrap; gap: 8px; }
+  .hero .ctas .btn {
+    padding: 12px 16px;
+    white-space: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
+  }
   .hero-stats { grid-template-columns: repeat(2, 1fr); }
   .post-grid, .post-grid-2col { grid-template-columns: 1fr; }
   .news-card { padding: 32px 24px; }
