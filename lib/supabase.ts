@@ -221,6 +221,11 @@ export type AppPage = {
   cta_secondary_label_hero: string;
   cta_secondary_href_hero: string;
 
+  // Optional YouTube video embedded between the hero and the "How it works"
+  // section. Accepts any youtube.com/youtu.be/shorts/embed URL — the page
+  // extracts the video ID at render time. Leave empty to hide the section.
+  hero_video_url?: string;
+
   // The "How it works" section
   how_it_works_eyebrow: string;
   how_it_works_heading: string;
@@ -229,7 +234,32 @@ export type AppPage = {
   // The "What you get" section
   features_eyebrow: string;
   features_heading: string;
+  // Legacy flat feature list (kept for backwards compatibility — earlier
+  // versions of /app rendered just these as single-line cards). Newer
+  // designs prefer `feature_groups` below, which supports a card with a
+  // headline/description plus a clean (single-level) bullet list of
+  // capabilities. If `feature_groups` has any items, the page renders
+  // those instead of `features`.
   features: { icon: string; title: string; desc: string }[];
+  // Richer feature blocks: each is a card with icon/title/short description
+  // and a flat list of bullet items underneath. NEVER nest bullets — the
+  // page renders `items` as a single-level list. If you need a sub-group,
+  // create a separate feature_group entry.
+  feature_groups?: {
+    icon: string;
+    title: string;
+    desc: string;
+    items: string[];
+  }[];
+
+  // Closing "philosophy" block — appears after the features grid. Used to
+  // ground the feature list in a design ethos (e.g. "designed around
+  // sustainability"). Optional — page hides the section if heading is empty.
+  philosophy_eyebrow?: string;
+  philosophy_heading?: string;
+  philosophy_body?: string;
+  philosophy_avoid?: string[];   // "We avoid…" bullet list
+  philosophy_focus?: string[];   // "We focus on…" bullet list
 
   // FAQ section
   faq_eyebrow: string;

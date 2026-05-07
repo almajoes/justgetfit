@@ -327,6 +327,19 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
               </div>
             </div>
 
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 24 }}>Hero video (optional)</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: -4, marginBottom: 12 }}>
+              Paste a YouTube URL to embed a video below the hero. Accepts <code>youtube.com/watch?v=…</code>, <code>youtu.be/…</code>, <code>youtube.com/shorts/…</code>, or <code>youtube.com/embed/…</code>. Leave blank to hide.
+            </p>
+            <Field label="YouTube URL">
+              <input
+                className="input"
+                placeholder="https://www.youtube.com/watch?v=…"
+                value={content.hero_video_url || ''}
+                onChange={(e) => update(['hero_video_url'], e.target.value)}
+              />
+            </Field>
+
             <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 24 }}>How it works section</h3>
             <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
               <Field label="Eyebrow tag">
@@ -363,21 +376,126 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
                 <input className="input" value={content.features_heading || ''} onChange={(e) => update(['features_heading'], e.target.value)} />
               </Field>
             </div>
+
+            {/* Feature groups (rich cards with bullet lists). This is the
+                primary feature section as of May 2026. The legacy `features`
+                flat list below it is kept for back-compat but the live page
+                renders feature_groups in preference when present.
+
+                Bullet items are edited as a textarea — one line per bullet —
+                to make it impossible to accidentally produce nested/double
+                bullets. We parse split('\n') on display and join('\n') on
+                save. */}
             <ArrayEditor
-              title="Features"
-              items={content.features || []}
-              onAdd={() => addItem('features', { icon: '✨', title: '', desc: '' })}
-              onRemove={(i) => removeItem('features', i)}
-              onMove={(i, d) => moveItem('features', i, d)}
+              title="Feature groups (cards with bullet lists)"
+              items={content.feature_groups || []}
+              onAdd={() => addItem('feature_groups', { icon: '✨', title: '', desc: '', items: [] })}
+              onRemove={(i) => removeItem('feature_groups', i)}
+              onMove={(i, d) => moveItem('feature_groups', i, d)}
               renderItem={(item, i) => (
-                <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
-                  <input className="input" placeholder="🎯" value={item.icon || ''} onChange={(e) => update(['features', i, 'icon'], e.target.value)} />
-                  <input className="input" placeholder="Title" value={item.title || ''} onChange={(e) => update(['features', i, 'title'], e.target.value)} />
-                  <div />
-                  <textarea className="input" rows={2} placeholder="Description" value={item.desc || ''} onChange={(e) => update(['features', i, 'desc'], e.target.value)} />
-                </div>
+                <>
+                  <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8, marginBottom: 8 }}>
+                    <input className="input" placeholder="🎯" value={item.icon || ''} onChange={(e) => update(['feature_groups', i, 'icon'], e.target.value)} />
+                    <input className="input" placeholder="Title (e.g. Personalized training programs)" value={item.title || ''} onChange={(e) => update(['feature_groups', i, 'title'], e.target.value)} />
+                  </div>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    placeholder="Short description (1–2 sentences)"
+                    value={item.desc || ''}
+                    onChange={(e) => update(['feature_groups', i, 'desc'], e.target.value)}
+                    style={{ marginBottom: 8 }}
+                  />
+                  <label className="label" style={{ marginTop: 4 }}>
+                    Bullet items <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>— one per line. Plain text only, no leading dashes or bullets.</span>
+                  </label>
+                  <textarea
+                    className="input"
+                    rows={6}
+                    placeholder={'Bullet item one\nBullet item two\nBullet item three'}
+                    value={(item.items || []).join('\n')}
+                    onChange={(e) =>
+                      update(
+                        ['feature_groups', i, 'items'],
+                        e.target.value.split('\n').map((s: string) => s.replace(/^[\s•·\-*]+/, '').trimEnd())
+                      )
+                    }
+                    style={{ fontFamily: 'monospace', fontSize: 13 }}
+                  />
+                </>
               )}
             />
+
+            <details style={{ marginTop: 12, marginBottom: 12 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--text-3)', padding: '6px 0' }}>
+                Legacy flat features list (only used if no feature groups above)
+              </summary>
+              <div style={{ marginTop: 8 }}>
+                <ArrayEditor
+                  title="Features (legacy)"
+                  items={content.features || []}
+                  onAdd={() => addItem('features', { icon: '✨', title: '', desc: '' })}
+                  onRemove={(i) => removeItem('features', i)}
+                  onMove={(i, d) => moveItem('features', i, d)}
+                  renderItem={(item, i) => (
+                    <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
+                      <input className="input" placeholder="🎯" value={item.icon || ''} onChange={(e) => update(['features', i, 'icon'], e.target.value)} />
+                      <input className="input" placeholder="Title" value={item.title || ''} onChange={(e) => update(['features', i, 'title'], e.target.value)} />
+                      <div />
+                      <textarea className="input" rows={2} placeholder="Description" value={item.desc || ''} onChange={(e) => update(['features', i, 'desc'], e.target.value)} />
+                    </div>
+                  )}
+                />
+              </div>
+            </details>
+
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16 }}>Philosophy block (optional)</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: -4, marginBottom: 12 }}>
+              Closing block after the features grid. Leave the heading blank to hide the entire section.
+            </p>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+              <Field label="Eyebrow tag">
+                <input className="input" value={content.philosophy_eyebrow || ''} onChange={(e) => update(['philosophy_eyebrow'], e.target.value)} />
+              </Field>
+              <Field label="Heading">
+                <input className="input" value={content.philosophy_heading || ''} onChange={(e) => update(['philosophy_heading'], e.target.value)} />
+              </Field>
+            </div>
+            <Field label="Body paragraph">
+              <textarea className="input" rows={3} value={content.philosophy_body || ''} onChange={(e) => update(['philosophy_body'], e.target.value)} />
+            </Field>
+            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Field label='"What we avoid" list — one per line'>
+                <textarea
+                  className="input"
+                  rows={5}
+                  placeholder={'Overwhelming interfaces\nFitness-industry hype\nUnrealistic expectations'}
+                  value={(content.philosophy_avoid || []).join('\n')}
+                  onChange={(e) =>
+                    update(
+                      ['philosophy_avoid'],
+                      e.target.value.split('\n').map((s: string) => s.replace(/^[\s•·\-*]+/, '').trimEnd())
+                    )
+                  }
+                  style={{ fontFamily: 'monospace', fontSize: 13 }}
+                />
+              </Field>
+              <Field label='"What we focus on" list — one per line'>
+                <textarea
+                  className="input"
+                  rows={5}
+                  placeholder={'Long-term consistency\nPersonalized structure\nSustainable progression'}
+                  value={(content.philosophy_focus || []).join('\n')}
+                  onChange={(e) =>
+                    update(
+                      ['philosophy_focus'],
+                      e.target.value.split('\n').map((s: string) => s.replace(/^[\s•·\-*]+/, '').trimEnd())
+                    )
+                  }
+                  style={{ fontFamily: 'monospace', fontSize: 13 }}
+                />
+              </Field>
+            </div>
 
             <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16 }}>FAQ section</h3>
             <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>

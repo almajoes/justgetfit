@@ -192,22 +192,22 @@ export const APP_DEFAULT: AppPage = {
   cta_subhead_inline:
     'Track workouts, follow personalized routines, and get meal plans built around your preferences. Free for newsletter subscribers.',
   cta_subhead_hero:
-    'Track workouts, follow personalized routines, and get meal plans built around your goals and preferences. Free for Just Get Fit newsletter subscribers — the app uses your existing email to grant access automatically.',
+    'A coaching system that evolves with you. Personalized training, adaptive nutrition, progress tracking, and long-term accountability — all in one place. Free for Just Get Fit newsletter subscribers.',
   cta_features: [
     {
-      icon: '📊',
-      title: 'Fitness tracker',
-      desc: 'Log workouts, track progress, and see your trends over time.',
-    },
-    {
       icon: '💪',
-      title: 'Workout routines',
-      desc: 'Personalized routines based on your goals and experience.',
+      title: 'Personalized training',
+      desc: 'Custom plans built around your goals, equipment, and schedule.',
     },
     {
       icon: '🥗',
-      title: 'Meal plans',
-      desc: 'Meal plans built around your preferences.',
+      title: 'Adaptive nutrition',
+      desc: 'Meal plans that flex with your training days and food preferences.',
+    },
+    {
+      icon: '📊',
+      title: 'Progress tracking',
+      desc: 'Workouts, photos, check-ins, and history — all in one place.',
     },
   ],
   cta_primary_url: 'https://app.justgetfit.org',
@@ -217,6 +217,10 @@ export const APP_DEFAULT: AppPage = {
   cta_secondary_href_inline: '/app',
   cta_secondary_label_hero: 'Not a subscriber yet? Join free',
   cta_secondary_href_hero: '/subscribe',
+
+  // Optional YouTube embed below the hero. Empty = hidden. Admin can paste
+  // any standard YouTube URL — the renderer extracts the video ID.
+  hero_video_url: '',
 
   how_it_works_eyebrow: 'How it works',
   how_it_works_heading: 'Three steps from inbox to action.',
@@ -229,32 +233,171 @@ export const APP_DEFAULT: AppPage = {
     },
     {
       title: 'Open the app',
-      desc: "Visit app.justgetfit.org and sign in with the email you subscribed with. You'll be in immediately.",
+      desc: "Visit app.justgetfit.org and sign in with the email you subscribed with. Magic-link login — no password to remember.",
     },
     {
       title: 'Tell it about you',
-      desc: 'A short onboarding asks about your goals, current activity, and food preferences. Then it builds your plan.',
+      desc: 'A short onboarding asks about your goals, experience, equipment, schedule, and food preferences. Then it builds your plan.',
     },
   ],
 
   features_eyebrow: 'What you get',
-  features_heading: 'Three tools, one app, zero cost.',
+  features_heading: 'Everything you need. Nothing you don’t.',
+  // Legacy flat list — kept populated for back-compat. The page renders
+  // `feature_groups` below in preference to this when present.
   features: [
     {
-      icon: '📊',
-      title: 'Fitness tracker',
-      desc: "Log workouts as you do them. See trends in volume, frequency, and progress over weeks and months. Spot when you're plateauing before it costs you.",
-    },
-    {
       icon: '💪',
-      title: 'Personalized workout routines',
-      desc: 'Built around your goals (strength, hypertrophy, conditioning, mobility) and adjusted to your current level. The app generates routines you can actually follow, not generic templates.',
+      title: 'Personalized training programs',
+      desc: 'Plans built around your goals, experience, equipment, and schedule — not one-size-fits-all templates.',
     },
     {
       icon: '🥗',
-      title: 'Meal plans',
-      desc: 'Meal suggestions based on your dietary preferences, restrictions, and goals. Skip the meal-planning paralysis — get options that fit how you actually eat.',
+      title: 'Adaptive meal planning',
+      desc: 'Daily targets, training-day vs rest-day adjustments, and grocery lists tied to your dietary preferences.',
     },
+    {
+      icon: '📊',
+      title: 'Progress tracking',
+      desc: 'Workout logs, photos, weekly check-ins, and historical comparisons across multiple programs.',
+    },
+  ],
+  feature_groups: [
+    {
+      icon: '💪',
+      title: 'Personalized training programs',
+      desc: 'Every plan is built around your goals, experience level, available equipment, schedule, injuries, and preferred session length. Real-world sustainability — not generic templates.',
+      items: [
+        'Goals: weight loss, muscle building, strength, endurance, general fitness, or maintenance',
+        'Beginner to advanced experience levels',
+        'Home gym, commercial gym, or limited-equipment setups',
+        'Flexible training frequency and session durations',
+        'Warm-ups, working sets, cooldowns, and mobility work',
+        'Exercise substitutions, technique notes, and RPE guidance',
+        'Rest timing and progressive structure across weeks',
+        'Log sets, reps, weight, effort, and notes — edit history anytime',
+      ],
+    },
+    {
+      icon: '🥗',
+      title: 'Adaptive meal planning',
+      desc: 'Personalized nutrition built around your goals, dietary preferences, allergens, and daily training intent.',
+      items: [
+        'Daily calorie targets with protein, carb, and fat breakdowns',
+        'Training-day vs rest-day nutrition adjustments',
+        'Ingredient-level meal breakdowns and grocery lists',
+        'Include/exclude foods when updating plans',
+        'Allergen-aware meal generation',
+        'Adjustable nutrition visibility for users who prefer less macro emphasis',
+        '“I’m Training” / “I’m Resting” daily routing — preserves weekly progression',
+      ],
+    },
+    {
+      icon: '📊',
+      title: 'Fitness tracker & progress monitoring',
+      desc: 'A centralized view of your program progress, activity history, and consistency over time. Stays accessible even when programs are paused.',
+      items: [
+        'Workout completion history and weekly progress overview',
+        'Session completion counts and recent activity timeline',
+        'Editable workout logs',
+        'Program duration tracking',
+        'Past program archives and historical comparisons',
+      ],
+    },
+    {
+      icon: '📸',
+      title: 'Progress photos',
+      desc: 'Upload front, side, and back photos at the start and end of each program. Securely stored and tied to individual programs for long-term visual tracking.',
+      items: [
+        'Front, side, and back angles',
+        'Starting and completion milestones for every program',
+        'Visual progress across multiple transformation cycles',
+      ],
+    },
+    {
+      icon: '📋',
+      title: 'Baseline & weekly check-ins',
+      desc: 'Your original onboarding info is preserved as a permanent reference point. Weekly check-ins keep momentum honest.',
+      items: [
+        'Baseline: weight, height, goal, experience, lifestyle, body metrics, starting photos',
+        'Weekly check-ins for weight, energy, recovery, soreness, and adherence',
+      ],
+    },
+    {
+      icon: '⏸️',
+      title: 'Pause & resume anytime',
+      desc: 'Built around long-term sustainability — not unrealistic streak pressure. Pause without losing progress. Resume exactly where you left off.',
+      items: [
+        'Frozen daily progression and check-in schedules',
+        'Preserved training and nutrition structure',
+        'Continued access to trackers and historical data',
+        'Seamless resume functionality',
+      ],
+    },
+    {
+      icon: '🔄',
+      title: 'Regenerate & update plans',
+      desc: 'Plans evolve with you. Update for injuries, schedule changes, new goals, or food preferences — without losing your broader program history.',
+      items: [
+        'Update for injuries, schedule changes, or lifestyle shifts',
+        'Refresh food preferences and goals',
+        'Previous plans archived automatically for future reference',
+      ],
+    },
+    {
+      icon: '📱',
+      title: 'Mobile-friendly across devices',
+      desc: 'Works seamlessly on desktop, tablet, and phone. Choose the layout that fits how you like to interact.',
+      items: [
+        'Splash view (visual tile-based experience)',
+        'Focused single-section pages',
+        'All-in-one dashboard layout',
+        'Slide-out navigation drawer on mobile',
+        'Mobile workout tracking and quick-access daily summaries',
+        'Responsive layouts and simplified day-to-day interactions',
+      ],
+    },
+    {
+      icon: '🗂️',
+      title: 'Smart program lifecycle',
+      desc: 'Programs intelligently track their full lifecycle so nothing gets lost. Completed programs live in a Past Programs archive — revisit them anytime.',
+      items: [
+        'Active, paused, completed, and archived statuses',
+        'Program timelines and effective training duration',
+        'Past Programs archive with plans and progress photos',
+      ],
+    },
+    {
+      icon: '⚙️',
+      title: 'Account & subscription management',
+      desc: 'Configure the app to match how you measure, where you live, and how you like things displayed. Secure magic-link login — no passwords.',
+      items: [
+        'Profile, avatar, and display preferences',
+        'Imperial or metric units',
+        'Timezone preferences',
+        'Subscription status and account details',
+        'Magic-link authentication',
+      ],
+    },
+  ],
+
+  philosophy_eyebrow: 'Our approach',
+  philosophy_heading: 'Designed around sustainability.',
+  philosophy_body:
+    'JustGetFit was intentionally designed to support real people doing real training over real timeframes — whether you’re just getting started or already deep into your fitness journey.',
+  philosophy_avoid: [
+    'Overwhelming interfaces',
+    'Fitness-industry hype',
+    'Unrealistic expectations',
+    'Generic cookie-cutter plans',
+  ],
+  philosophy_focus: [
+    'Long-term consistency',
+    'Personalized structure',
+    'Sustainable progression',
+    'Adaptability to life changes',
+    'Real-world usability',
+    'Coach-style guidance',
   ],
 
   faq_eyebrow: 'FAQ',
@@ -271,6 +414,14 @@ export const APP_DEFAULT: AppPage = {
     {
       q: 'Do I need to install anything?',
       a: 'No. The app runs in your browser at app.justgetfit.org. Works on phone, tablet, or desktop.',
+    },
+    {
+      q: 'Can I pause my program if life gets in the way?',
+      a: "Yes — pause anytime without losing progress. Your plan, history, and check-in schedule freeze. When you resume, you pick up exactly where you left off.",
+    },
+    {
+      q: 'Can I update my plan if my goals or schedule change?',
+      a: "Absolutely. Regenerate your training or meal plan to match new injuries, schedule changes, food preferences, or goals. Previous plans are archived so you don't lose history.",
     },
     {
       q: 'Can I use it without sharing my data?',
