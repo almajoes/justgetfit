@@ -101,7 +101,7 @@ export async function getPage<T>(slug: string, fallback: T): Promise<T> {
  * `undefined` values in override are skipped (use base). `null` is treated
  * as an explicit value — admins may want to clear a field with null.
  */
-function deepMerge<T>(base: T, override: any): T {
+export function deepMerge<T>(base: T, override: any): T {
   if (override === undefined) return base;
   if (override === null) return override as T;
   if (Array.isArray(base) || Array.isArray(override)) {

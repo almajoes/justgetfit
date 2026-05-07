@@ -7,6 +7,7 @@ import {
   SUBSCRIBE_DEFAULT,
   CONTACT_DEFAULT,
   APP_DEFAULT,
+  deepMerge,
 } from '@/lib/cms';
 
 // Force fresh data on every request - never cache
@@ -37,10 +38,15 @@ export default async function AdminPageEditor({ params }: { params: { slug: stri
     .eq('slug', params.slug)
     .maybeSingle();
 
-  // If no row exists, render with the same defaults the public site uses.
-  // First save will create the row via the API route's upsert.
-  const initialContent =
-    data?.content ?? DEFAULTS[params.slug as typeof ALLOWED[number]];
+  // Deep-merge stored content over defaults. This matches the public site's
+  // getPage() behavior — fields that exist in defaults but NOT in the stored
+  // row (e.g. new fields added in later migrations) get populated from
+  // defaults so admins see a fully-populated editor instead of empty fields
+  // for new schema additions. Stored values always win for fields that exist.
+  const fallback = DEFAULTS[params.slug as typeof ALLOWED[number]];
+  const initialContent = data?.content
+    ? deepMerge(fallback, data.content)
+    : fallback;
 
-  return <PageEditor slug={params.slug} initialContent={initialContent} />;
+  return <PageEditor slug={params.slug} initialContent={initialContent as Record<string, any>} />;
 }
