@@ -297,8 +297,8 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
                 </div>
               )}
             />
-            <Field label="Primary button URL (where the main CTA links to — typically https://app.justgetfit.org)">
-              <input className="input" value={content.cta_primary_url || ''} onChange={(e) => update(['cta_primary_url'], e.target.value)} />
+            <Field label="Primary button URL — leave blank while in beta to render as a non-clickable “Coming soon” pill. Set to the app URL when the app is live.">
+              <input className="input" placeholder="(blank = Coming soon button)" value={content.cta_primary_url || ''} onChange={(e) => update(['cta_primary_url'], e.target.value)} />
             </Field>
             <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>

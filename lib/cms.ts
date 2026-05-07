@@ -187,12 +187,12 @@ export const APP_DEFAULT: AppPage = {
   // Mirrors what was previously hardcoded in components/AppCTA.tsx.
   // "AI-generated meal plans" wording was removed per May 3 update —
   // now reads "Meal plans built around your preferences".
-  cta_eyebrow: 'New · The Just Get Fit App',
-  cta_headline: 'Get personalized plans that adapt to you.',
+  cta_eyebrow: 'Coming soon · The Just Get Fit App',
+  cta_headline: 'Personalized plans that adapt to you.',
   cta_subhead_inline:
-    'Track workouts, follow personalized routines, and get meal plans built around your preferences. Free for newsletter subscribers.',
+    'Workout tracking, personalized routines, and meal plans built around your preferences. Launching soon — free for newsletter subscribers.',
   cta_subhead_hero:
-    'A coaching system that evolves with you. Personalized training, adaptive nutrition, progress tracking, and long-term accountability — all in one place. Free for Just Get Fit newsletter subscribers.',
+    'A coaching system that evolves with you. Personalized training, adaptive nutrition, progress tracking, and long-term accountability — all in one place. Launching soon, free for Just Get Fit newsletter subscribers.',
   cta_features: [
     {
       icon: '💪',
@@ -210,12 +210,12 @@ export const APP_DEFAULT: AppPage = {
       desc: 'Workouts, photos, check-ins, and history — all in one place.',
     },
   ],
-  cta_primary_url: 'https://app.justgetfit.org',
-  cta_primary_label_inline: 'Try the app →',
-  cta_primary_label_hero: 'Open the app →',
+  cta_primary_url: '',
+  cta_primary_label_inline: 'Coming soon',
+  cta_primary_label_hero: 'Coming soon',
   cta_secondary_label_inline: 'Learn more',
   cta_secondary_href_inline: '/app',
-  cta_secondary_label_hero: 'Not a subscriber yet? Join free',
+  cta_secondary_label_hero: 'Subscribe to reserve your spot',
   cta_secondary_href_hero: '/subscribe',
 
   // Optional YouTube embed below the hero. Empty = hidden. Admin can paste
@@ -227,13 +227,13 @@ export const APP_DEFAULT: AppPage = {
   steps: [
     {
       title: 'Subscribe to the newsletter',
-      desc: "The app uses your subscriber email to grant access. If you're already a subscriber, you're set — just sign in with the same email.",
+      desc: "The app uses your subscriber email to grant access. If you're already a subscriber, you're all set for launch.",
       cta_label: 'Subscribe free →',
       cta_href: '/subscribe',
     },
     {
-      title: 'Open the app',
-      desc: "Visit app.justgetfit.org and sign in with the email you subscribed with. Magic-link login — no password to remember.",
+      title: 'Wait for launch',
+      desc: "We'll email subscribers when the app is ready. Sign in with the email you subscribed with — magic-link login, no password to remember.",
     },
     {
       title: 'Tell it about you',
@@ -413,7 +413,7 @@ export const APP_DEFAULT: AppPage = {
     },
     {
       q: 'Do I need to install anything?',
-      a: 'No. The app runs in your browser at app.justgetfit.org. Works on phone, tablet, or desktop.',
+      a: 'No. The app will run in your browser — no install required. Works on phone, tablet, or desktop.',
     },
     {
       q: 'Can I pause my program if life gets in the way?',
@@ -433,12 +433,12 @@ export const APP_DEFAULT: AppPage = {
     },
   ],
 
-  bottom_cta_heading: 'Ready to get started?',
-  bottom_cta_subhead: "Open the app with the email you used to subscribe to the newsletter, or join the list first if you haven't already.",
-  bottom_cta_primary_label: 'Open the app →',
-  bottom_cta_primary_href: 'https://app.justgetfit.org',
-  bottom_cta_secondary_label: 'Subscribe to the newsletter',
-  bottom_cta_secondary_href: '/subscribe',
+  bottom_cta_heading: 'Want early access?',
+  bottom_cta_subhead: "The app launches soon for Just Get Fit newsletter subscribers. Subscribe today to reserve your spot — we'll email you when it's ready.",
+  bottom_cta_primary_label: 'Subscribe to reserve your spot',
+  bottom_cta_primary_href: '/subscribe',
+  bottom_cta_secondary_label: '',
+  bottom_cta_secondary_href: '',
 
   // ─── Doc-style /app page content ────────────────────────────────────
   // Verbatim copy from the "JustGetFit App Features Overview" brief

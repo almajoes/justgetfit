@@ -4,9 +4,8 @@ import type { AppPage } from '@/lib/supabase';
 /**
  * <AppCTA />
  *
- * Three-column feature card promoting app.justgetfit.org. Used on:
+ * Three-column feature card promoting the Just Get Fit app. Used on:
  *   - End of every article (between content and disclaimer) — "inline" variant
- *   - The /app landing page top — "hero" variant
  *
  * Content is CMS-managed via /admin/pages/app — pass an AppPage `content`
  * prop. Both variants share the same eyebrow, headline, feature cards, and
@@ -15,25 +14,59 @@ import type { AppPage } from '@/lib/supabase';
  *
  * Variants:
  *   - 'inline' — at end of articles. Compact, content-area-width.
- *   - 'hero'   — on /app. Larger feature treatment with longer subhead.
+ *   - 'hero'   — large variant (currently unused on /app since the May 2026
+ *               doc-layout redesign, but kept for future reuse).
+ *
+ * Primary button states:
+ *   - URL set to a real address  → renders as a clickable button
+ *   - URL set to an empty string → renders as a non-interactive "coming soon"
+ *     pill (used while the app is in private beta — May 2026)
  *
  * Server component. No client interactivity needed.
  */
 
 type Variant = 'inline' | 'hero';
 
+/**
+ * BETA_APP_LIVE — flip this to `true` when the Just Get Fit app at
+ * app.justgetfit.org is publicly available. While `false` (private beta),
+ * the primary CTA on this card forces a "Coming soon" non-interactive pill
+ * regardless of what's stored in the CMS, so any stale CMS content from
+ * pre-beta defaults can't accidentally surface a live app link.
+ *
+ * When you flip this to `true`, the component falls back to the CMS-driven
+ * primary URL and label.
+ */
+const BETA_APP_LIVE = false;
+
 export function AppCTA({ variant = 'inline', content }: { variant?: Variant; content: AppPage }) {
   const isHero = variant === 'hero';
 
   // Pick variant-specific fields from the shared content object.
   const subhead = isHero ? content.cta_subhead_hero : content.cta_subhead_inline;
-  const primaryLabel = isHero ? content.cta_primary_label_hero : content.cta_primary_label_inline;
-  const secondaryLabel = isHero ? content.cta_secondary_label_hero : content.cta_secondary_label_inline;
-  const secondaryHref = isHero ? content.cta_secondary_href_hero : content.cta_secondary_href_inline;
-  const primaryUrl = content.cta_primary_url || 'https://app.justgetfit.org';
+  const cmsPrimaryLabel = isHero ? content.cta_primary_label_hero : content.cta_primary_label_inline;
+  const cmsSecondaryLabel = isHero ? content.cta_secondary_label_hero : content.cta_secondary_label_inline;
+  const cmsSecondaryHref = isHero ? content.cta_secondary_href_hero : content.cta_secondary_href_inline;
 
-  // Detect external URL for primary CTA — opens in new tab if external.
-  const primaryIsExternal = /^https?:\/\//i.test(primaryUrl);
+  // While the app is in private beta we override CMS values so old stored
+  // copy can't surface a working link to app.justgetfit.org. When
+  // BETA_APP_LIVE is true, we use the CMS-driven values as normal.
+  const primaryUrl = BETA_APP_LIVE ? (content.cta_primary_url || '').trim() : '';
+  const primaryLabel = BETA_APP_LIVE ? cmsPrimaryLabel : 'Coming soon';
+  const primaryEnabled = primaryUrl.length > 0;
+
+  // Hero variant secondary link: while in beta, force "Subscribe to reserve
+  // your spot" → /subscribe regardless of CMS, so old stored copy like
+  // "Not a subscriber yet? Join free" doesn't surface. The inline variant's
+  // secondary ("Learn more" → /app) is left CMS-driven since it points to
+  // the public features page, which still works.
+  const secondaryLabel =
+    !BETA_APP_LIVE && isHero ? 'Subscribe to reserve your spot' : cmsSecondaryLabel;
+  const secondaryHref =
+    !BETA_APP_LIVE && isHero ? '/subscribe' : cmsSecondaryHref;
+
+  // Detect external URL for the (possibly enabled) primary CTA.
+  const primaryIsExternal = primaryEnabled && /^https?:\/\//i.test(primaryUrl);
   const secondaryIsExternal = /^https?:\/\//i.test(secondaryHref || '');
 
   return (
@@ -163,24 +196,44 @@ export function AppCTA({ variant = 'inline', content }: { variant?: Variant; con
         {/* CTAs */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           {primaryLabel && (
-            primaryIsExternal ? (
-              <a
-                href={primaryUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary"
-                style={{ fontSize: 15, padding: '12px 28px' }}
-              >
-                {primaryLabel}
-              </a>
+            primaryEnabled ? (
+              primaryIsExternal ? (
+                <a
+                  href={primaryUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary"
+                  style={{ fontSize: 15, padding: '12px 28px' }}
+                >
+                  {primaryLabel}
+                </a>
+              ) : (
+                <Link
+                  href={primaryUrl}
+                  className="btn btn-primary"
+                  style={{ fontSize: 15, padding: '12px 28px' }}
+                >
+                  {primaryLabel}
+                </Link>
+              )
             ) : (
-              <Link
-                href={primaryUrl}
+              // Disabled "coming soon" state — non-interactive pill that
+              // matches the visual weight of the primary CTA but doesn't
+              // navigate. Used while the app is in private beta.
+              <span
+                aria-disabled="true"
                 className="btn btn-primary"
-                style={{ fontSize: 15, padding: '12px 28px' }}
+                style={{
+                  fontSize: 15,
+                  padding: '12px 28px',
+                  opacity: 0.55,
+                  cursor: 'not-allowed',
+                  pointerEvents: 'none',
+                  boxShadow: 'none',
+                }}
               >
                 {primaryLabel}
-              </Link>
+              </span>
             )
           )}
           {secondaryLabel && secondaryHref && (
