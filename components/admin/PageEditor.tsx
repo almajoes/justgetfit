@@ -340,125 +340,36 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
               />
             </Field>
 
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 24 }}>Page content</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 24 }}>App launch status</h3>
             <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: -4, marginBottom: 12 }}>
-              The /app page renders as a single-column document. Edit the page title, intro, and sections below. Each section can have an optional intro, and any number of subsections (each with optional title, intro, and a flat bullet list — no nested bullets).
+              While this is off, the article-end App CTA shows a non-clickable “Coming soon” pill instead of a live app link, and the hero variant secondary link forces “Subscribe to reserve your spot” → <code>/subscribe</code>. Flip on once the app at <code>app.justgetfit.org</code> is publicly available.
             </p>
-
-            <Field label="Page title (H1)">
-              <input className="input" value={content.page_title || ''} onChange={(e) => update(['page_title'], e.target.value)} />
+            <Field label="App is live (turn on to enable real app links across the site)">
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14, color: 'var(--text)' }}>
+                <input
+                  type="checkbox"
+                  checked={!!content.app_live}
+                  onChange={(e) => update(['app_live'], e.target.checked)}
+                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                />
+                {content.app_live ? <span style={{ color: 'var(--neon)', fontWeight: 600 }}>App is LIVE</span> : <span style={{ color: 'var(--text-3)' }}>App is in beta — showing “Coming soon”</span>}
+              </label>
             </Field>
-            <Field label="Page intro paragraph">
-              <textarea className="input" rows={4} placeholder="Lead paragraph that appears under the H1." value={content.page_intro || ''} onChange={(e) => update(['page_intro'], e.target.value)} />
+
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 24 }}>Page content (Markdown)</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: -4, marginBottom: 12 }}>
+              The /app page renders this Markdown as a single-column document below the hero video. Supported: <code>#</code> for the H1 page title, <code>##</code> for section headings, <code>###</code> for subsection headings, blank lines for paragraph breaks, <code>-</code> or <code>*</code> for bullet lists, <code>**bold**</code>, <code>*italic*</code>, and <code>[link](https://…)</code>. Nested bullets are flattened to a single level by design.
+            </p>
+            <Field label="Markdown body">
+              <textarea
+                className="input"
+                rows={30}
+                placeholder={'# Page Title\n\nLead paragraph goes here.\n\n## Section heading\n\nIntro paragraph.\n\n### Subsection\n\n- Bullet one\n- Bullet two\n'}
+                value={content.page_markdown || ''}
+                onChange={(e) => update(['page_markdown'], e.target.value)}
+                style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, lineHeight: 1.55 }}
+              />
             </Field>
-
-            <ArrayEditor
-              title="Sections"
-              items={content.doc_sections || []}
-              onAdd={() => addItem('doc_sections', { title: '', intro: '', subsections: [] })}
-              onRemove={(i) => removeItem('doc_sections', i)}
-              onMove={(i, d) => moveItem('doc_sections', i, d)}
-              renderItem={(section, si) => (
-                <>
-                  <Field label="Section title (H2)">
-                    <input className="input" placeholder="e.g. Personalized Training Programs" value={section.title || ''} onChange={(e) => update(['doc_sections', si, 'title'], e.target.value)} />
-                  </Field>
-                  <Field label="Section intro (optional)">
-                    <textarea className="input" rows={3} placeholder="Optional paragraph that appears under the H2 (use a blank line for paragraph breaks)." value={section.intro || ''} onChange={(e) => update(['doc_sections', si, 'intro'], e.target.value)} />
-                  </Field>
-
-                  <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: '2px solid var(--line)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>
-                        Subsections
-                      </h4>
-                      <button
-                        onClick={() =>
-                          update(
-                            ['doc_sections', si, 'subsections'],
-                            [...(section.subsections || []), { title: '', intro: '', items: [] }]
-                          )
-                        }
-                        className="btn btn-ghost"
-                        style={{ padding: '5px 12px', fontSize: 12 }}
-                      >
-                        + Add subsection
-                      </button>
-                    </div>
-
-                    {(section.subsections || []).map((sub: any, ssi: number) => (
-                      <div key={ssi} style={{ background: 'var(--bg-2)', border: '1px solid var(--line)', borderRadius: 10, padding: 14, marginBottom: 8 }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 8 }}>
-                          <button
-                            onClick={() => {
-                              const arr = [...(section.subsections || [])];
-                              const j = ssi - 1;
-                              if (j < 0) return;
-                              [arr[ssi], arr[j]] = [arr[j], arr[ssi]];
-                              update(['doc_sections', si, 'subsections'], arr);
-                            }}
-                            disabled={ssi === 0}
-                            style={miniBtn}
-                          >
-                            ↑
-                          </button>
-                          <button
-                            onClick={() => {
-                              const arr = [...(section.subsections || [])];
-                              const j = ssi + 1;
-                              if (j >= arr.length) return;
-                              [arr[ssi], arr[j]] = [arr[j], arr[ssi]];
-                              update(['doc_sections', si, 'subsections'], arr);
-                            }}
-                            disabled={ssi === (section.subsections || []).length - 1}
-                            style={miniBtn}
-                          >
-                            ↓
-                          </button>
-                          <button
-                            onClick={() => {
-                              const arr = (section.subsections || []).filter((_: any, i: number) => i !== ssi);
-                              update(['doc_sections', si, 'subsections'], arr);
-                            }}
-                            style={{ ...miniBtn, color: '#ff6b6b' }}
-                          >
-                            Delete
-                          </button>
-                        </div>
-
-                        <Field label="Subsection title (H3, optional)">
-                          <input className="input" placeholder="e.g. Training plan customization includes:" value={sub.title || ''} onChange={(e) => update(['doc_sections', si, 'subsections', ssi, 'title'], e.target.value)} />
-                        </Field>
-                        <Field label="Subsection intro (optional)">
-                          <textarea className="input" rows={2} placeholder="Optional paragraph between the H3 and the bullet list." value={sub.intro || ''} onChange={(e) => update(['doc_sections', si, 'subsections', ssi, 'intro'], e.target.value)} />
-                        </Field>
-                        <Field label="Bullet items — one per line">
-                          <textarea
-                            className="input"
-                            rows={6}
-                            placeholder={'Item one\nItem two\nItem three'}
-                            value={(sub.items || []).join('\n')}
-                            onChange={(e) =>
-                              update(
-                                ['doc_sections', si, 'subsections', ssi, 'items'],
-                                e.target.value.split('\n').map((s: string) => s.replace(/^[\s•·\-*]+/, '').trimEnd())
-                              )
-                            }
-                            style={{ fontFamily: 'monospace', fontSize: 13 }}
-                          />
-                        </Field>
-                      </div>
-                    ))}
-
-                    {(section.subsections || []).length === 0 && (
-                      <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '4px 0 0' }}>
-                        No subsections yet. A section can have just an intro paragraph, or any number of subsections.
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
-            />
           </>
         )}
       </div>

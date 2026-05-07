@@ -203,10 +203,11 @@ export type ContactPage = {
 };
 
 export type AppPage = {
-  // ─── Hero / CTA card (shared between /app top hero and article-end CTA) ───
-  // The same component renders in two variants; some fields differ per variant
-  // (subhead, primary button label, secondary link) while others are shared
-  // (eyebrow, headline, feature cards, primary button URL).
+  // ─── Hero / CTA card (used at the end of every article) ───
+  // The same component (components/AppCTA.tsx) renders article-end inline
+  // CTAs and supports a hero variant for future reuse. Some fields differ
+  // per variant (subhead, primary button label, secondary link); others
+  // are shared (eyebrow, headline, feature cards, primary button URL).
   cta_eyebrow: string;
   cta_headline: string;
   cta_subhead_inline: string;
@@ -221,77 +222,24 @@ export type AppPage = {
   cta_secondary_label_hero: string;
   cta_secondary_href_hero: string;
 
-  // Optional YouTube video embedded between the hero and the "How it works"
-  // section. Accepts any youtube.com/youtu.be/shorts/embed URL — the page
-  // extracts the video ID at render time. Leave empty to hide the section.
+  // App-launch toggle. While false (private beta), the AppCTA primary
+  // button renders as a non-interactive "Coming soon" pill regardless of
+  // CMS values, and the hero variant secondary link force-overrides to
+  // "Subscribe to reserve your spot" → /subscribe. Flip to true once the
+  // app at app.justgetfit.org is publicly live.
+  app_live?: boolean;
+
+  // Optional YouTube video embedded at the very top of the /app page.
+  // Accepts any youtube.com/youtu.be/shorts/embed URL — the page extracts
+  // the video ID at render time. Leave empty to hide.
   hero_video_url?: string;
 
-  // The "How it works" section
-  how_it_works_eyebrow: string;
-  how_it_works_heading: string;
-  steps: { title: string; desc: string; cta_label?: string; cta_href?: string }[];
-
-  // The "What you get" section
-  features_eyebrow: string;
-  features_heading: string;
-  // Legacy flat feature list (kept for backwards compatibility — earlier
-  // versions of /app rendered just these as single-line cards). Newer
-  // designs prefer `feature_groups` below, which supports a card with a
-  // headline/description plus a clean (single-level) bullet list of
-  // capabilities. If `feature_groups` has any items, the page renders
-  // those instead of `features`.
-  features: { icon: string; title: string; desc: string }[];
-  // Richer feature blocks: each is a card with icon/title/short description
-  // and a flat list of bullet items underneath. NEVER nest bullets — the
-  // page renders `items` as a single-level list. If you need a sub-group,
-  // create a separate feature_group entry.
-  feature_groups?: {
-    icon: string;
-    title: string;
-    desc: string;
-    items: string[];
-  }[];
-
-  // Closing "philosophy" block — appears after the features grid. Used to
-  // ground the feature list in a design ethos (e.g. "designed around
-  // sustainability"). Optional — page hides the section if heading is empty.
-  philosophy_eyebrow?: string;
-  philosophy_heading?: string;
-  philosophy_body?: string;
-  philosophy_avoid?: string[];   // "We avoid…" bullet list
-  philosophy_focus?: string[];   // "We focus on…" bullet list
-
-  // FAQ section
-  faq_eyebrow: string;
-  faq_heading: string;
-  faqs: { q: string; a: string }[];
-
-  // Bottom CTA section
-  bottom_cta_heading: string;
-  bottom_cta_subhead: string;
-  bottom_cta_primary_label: string;
-  bottom_cta_primary_href: string;
-  bottom_cta_secondary_label: string;
-  bottom_cta_secondary_href: string;
-
-  // ─── Doc-style page content (May 2026 redesign) ─────────────────────
-  // The /app page is now a single-column editorial document — page title,
-  // intro paragraph, then a flat sequence of sections. Each section can
-  // optionally include subsections, each with their own intro paragraph
-  // and a flat (single-level only) bullet list. The CTA fields above are
-  // still used by the AppCTA component on article pages, but the /app
-  // page itself ignores them in favor of this structure.
-  page_title?: string;
-  page_intro?: string;
-  doc_sections?: {
-    title: string;
-    intro?: string;
-    subsections?: {
-      title?: string;
-      intro?: string;
-      items?: string[];
-    }[];
-  }[];
+  // The /app page is rendered as a single-column editorial document from
+  // a single Markdown blob. Supports headings (#, ##, ###), paragraphs,
+  // bullet lists (-, *), numbered lists, bold, italic, and links. Nested
+  // bullets are intentionally flattened to a single level by the renderer
+  // — the editorial design only allows single-level lists.
+  page_markdown?: string;
 };
 
 export type PageSlug = 'home-hero' | 'about' | 'subscribe' | 'contact' | 'app';

@@ -27,20 +27,18 @@ import type { AppPage } from '@/lib/supabase';
 
 type Variant = 'inline' | 'hero';
 
-/**
- * BETA_APP_LIVE — flip this to `true` when the Just Get Fit app at
- * app.justgetfit.org is publicly available. While `false` (private beta),
- * the primary CTA on this card forces a "Coming soon" non-interactive pill
- * regardless of what's stored in the CMS, so any stale CMS content from
- * pre-beta defaults can't accidentally surface a live app link.
- *
- * When you flip this to `true`, the component falls back to the CMS-driven
- * primary URL and label.
- */
-const BETA_APP_LIVE = false;
-
 export function AppCTA({ variant = 'inline', content }: { variant?: Variant; content: AppPage }) {
   const isHero = variant === 'hero';
+
+  // App-launch toggle — read from the CMS field `app_live` (managed at
+  // /admin/pages/app). While `false` (private beta), the primary CTA on
+  // this card forces a "Coming soon" non-interactive pill regardless of
+  // what's stored in the CMS, and the hero variant secondary link force-
+  // overrides to "Subscribe to reserve your spot" → /subscribe. This
+  // protects against stale CMS values surfacing live app links during
+  // the beta period. Flip `app_live` to true in admin once the app is
+  // publicly available, and CMS-driven values take over.
+  const appLive = !!content.app_live;
 
   // Pick variant-specific fields from the shared content object.
   const subhead = isHero ? content.cta_subhead_hero : content.cta_subhead_inline;
@@ -48,22 +46,17 @@ export function AppCTA({ variant = 'inline', content }: { variant?: Variant; con
   const cmsSecondaryLabel = isHero ? content.cta_secondary_label_hero : content.cta_secondary_label_inline;
   const cmsSecondaryHref = isHero ? content.cta_secondary_href_hero : content.cta_secondary_href_inline;
 
-  // While the app is in private beta we override CMS values so old stored
-  // copy can't surface a working link to app.justgetfit.org. When
-  // BETA_APP_LIVE is true, we use the CMS-driven values as normal.
-  const primaryUrl = BETA_APP_LIVE ? (content.cta_primary_url || '').trim() : '';
-  const primaryLabel = BETA_APP_LIVE ? cmsPrimaryLabel : 'Coming soon';
+  // Apply the beta override.
+  const primaryUrl = appLive ? (content.cta_primary_url || '').trim() : '';
+  const primaryLabel = appLive ? cmsPrimaryLabel : 'Coming soon';
   const primaryEnabled = primaryUrl.length > 0;
 
   // Hero variant secondary link: while in beta, force "Subscribe to reserve
-  // your spot" → /subscribe regardless of CMS, so old stored copy like
-  // "Not a subscriber yet? Join free" doesn't surface. The inline variant's
-  // secondary ("Learn more" → /app) is left CMS-driven since it points to
+  // your spot" → /subscribe regardless of CMS. The inline variant's
+  // secondary ("Learn more" → /app) stays CMS-driven since it points to
   // the public features page, which still works.
-  const secondaryLabel =
-    !BETA_APP_LIVE && isHero ? 'Subscribe to reserve your spot' : cmsSecondaryLabel;
-  const secondaryHref =
-    !BETA_APP_LIVE && isHero ? '/subscribe' : cmsSecondaryHref;
+  const secondaryLabel = !appLive && isHero ? 'Subscribe to reserve your spot' : cmsSecondaryLabel;
+  const secondaryHref = !appLive && isHero ? '/subscribe' : cmsSecondaryHref;
 
   // Detect external URL for the (possibly enabled) primary CTA.
   const primaryIsExternal = primaryEnabled && /^https?:\/\//i.test(primaryUrl);
