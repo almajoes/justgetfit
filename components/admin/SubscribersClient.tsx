@@ -243,7 +243,7 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
           }}
         >
           <span aria-hidden style={{ fontSize: 14 }}>📱</span>
-          Active app users
+          App users
         </button>
       </div>
 

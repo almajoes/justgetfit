@@ -1,44 +1,56 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatEasternDate } from '@/lib/format-date';
 
 /**
  * <AppUsersModal />
  *
- * Modal that shows the list of subscribers currently using the
- * app.justgetfit.org app — defined as having a program_state row with
- * status IN ('active', 'paused'). Triggered by a button on
- * /admin/subscribers.
+ * Modal that shows the list of app.justgetfit.org users — anyone with a
+ * row in `public.profiles`. Each user reports their email, display name,
+ * onboarding completion, current program status (if any), program start
+ * date (if any), and signup date.
  *
- * Data: GET /api/admin/app-users?page=N&pageSize=25 — paginated. The API
- * delegates to the `admin_list_app_users` RPC, which does the
- * auth.users × profiles × program_state join in a single query.
+ * Filters (button row at top):
+ *   - All                  — every profile row
+ *   - Active               — current program status = 'active'
+ *   - Paused               — current program status = 'paused'
+ *   - Onboarded, no program — completed onboarding but no active/paused program
+ *   - Onboarding incomplete — started onboarding but completed_onboarding = false
  *
- * Auth: same admin gate as the rest of the admin surface (cookie session
- * checked by checkAdminAuth in the API route).
+ * Data: GET /api/admin/app-users?page=N&pageSize=25&filter=X — paginated.
+ * The API delegates to the `admin_list_app_users` RPC, which does the
+ * auth.users × profiles × program_state join + filtering in a single query.
  */
+
+type FilterKey = 'all' | 'active' | 'paused' | 'onboarded_no_program' | 'incomplete';
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'Active' },
+  { key: 'paused', label: 'Paused' },
+  { key: 'onboarded_no_program', label: 'Onboarded, no program' },
+  { key: 'incomplete', label: 'Onboarding incomplete' },
+];
 
 type AppUser = {
   user_id: string;
   email: string;
   display_name: string | null;
-  program_status: 'active' | 'paused';
+  completed_onboarding: boolean;
+  program_status: string | null;
   program_started_at: string | null;
   signed_up_at: string;
 };
 
-type ApiResponse = {
-  ok: true;
-  users: AppUser[];
-  total: number;
-  page: number;
-  pageSize: number;
-} | { error: string; hint?: string };
+type ApiResponse =
+  | { ok: true; users: AppUser[]; total: number; page: number; pageSize: number; filter: FilterKey }
+  | { error: string; hint?: string };
 
 const PAGE_SIZE = 25;
 
 export function AppUsersModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [filter, setFilter] = useState<FilterKey>('all');
   const [page, setPage] = useState(1);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [total, setTotal] = useState(0);
@@ -46,48 +58,56 @@ export function AppUsersModal({ open, onClose }: { open: boolean; onClose: () =>
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
 
-  const load = useCallback(async (pageNum: number) => {
-    setLoading(true);
-    setError(null);
-    setHint(null);
-    try {
-      const res = await fetch(`/api/admin/app-users?page=${pageNum}&pageSize=${PAGE_SIZE}`, {
-        cache: 'no-store',
-      });
-      const json: ApiResponse = await res.json();
-      if (!res.ok || 'error' in json) {
-        const j = json as { error: string; hint?: string };
-        setError(j.error || `Request failed (${res.status})`);
-        if (j.hint) setHint(j.hint);
+  const load = useCallback(
+    async (pageNum: number, filterKey: FilterKey) => {
+      setLoading(true);
+      setError(null);
+      setHint(null);
+      try {
+        const res = await fetch(
+          `/api/admin/app-users?page=${pageNum}&pageSize=${PAGE_SIZE}&filter=${encodeURIComponent(filterKey)}`,
+          { cache: 'no-store' }
+        );
+        const json: ApiResponse = await res.json();
+        if (!res.ok || 'error' in json) {
+          const j = json as { error: string; hint?: string };
+          setError(j.error || `Request failed (${res.status})`);
+          if (j.hint) setHint(j.hint);
+          setUsers([]);
+          setTotal(0);
+        } else {
+          setUsers(json.users);
+          setTotal(json.total);
+        }
+      } catch (err: any) {
+        setError(err?.message || 'Network error');
         setUsers([]);
         setTotal(0);
-      } else {
-        setUsers(json.users);
-        setTotal(json.total);
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Network error');
-      setUsers([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
-  // Refetch on open and on page change. We reset to page 1 every time the
-  // modal opens so the user always lands on the most-recent starts.
+  // Refetch on open. We reset to page 1 + filter 'all' every open so the
+  // modal always lands in a known state.
   useEffect(() => {
     if (open) {
       setPage(1);
-      load(1);
+      setFilter('all');
+      load(1, 'all');
     }
   }, [open, load]);
 
+  // Refetch when filter or page changes (only while open). Filter changes
+  // must reset page to 1, which we do via the click handler below.
   useEffect(() => {
-    if (open) load(page);
-  }, [page, open, load]);
+    if (open) load(page, filter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, filter, open]);
 
-  // Close on Escape — basic affordance for a modal that takes the screen.
+  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -97,17 +117,22 @@ export function AppUsersModal({ open, onClose }: { open: boolean; onClose: () =>
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  if (!open) return null;
-
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const startIdx = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const endIdx = Math.min(total, page * PAGE_SIZE);
+
+  const activeFilterLabel = useMemo(
+    () => FILTERS.find((f) => f.key === filter)?.label ?? 'All',
+    [filter]
+  );
+
+  if (!open) return null;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Active app users"
+      aria-label="App users"
       onClick={onClose}
       style={{
         position: 'fixed',
@@ -130,7 +155,7 @@ export function AppUsersModal({ open, onClose }: { open: boolean; onClose: () =>
           borderRadius: 16,
           padding: 28,
           width: '100%',
-          maxWidth: 960,
+          maxWidth: 1080,
           color: 'var(--text)',
           boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
         }}
@@ -138,9 +163,9 @@ export function AppUsersModal({ open, onClose }: { open: boolean; onClose: () =>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 8 }}>
           <div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>Active app users</h2>
+            <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>App users</h2>
             <p style={{ fontSize: 13, color: 'var(--text-2)', margin: '6px 0 0' }}>
-              Subscribers with a current program (status active or paused) on app.justgetfit.org.
+              Subscribers who have at least started onboarding on app.justgetfit.org. Filter by their current state below.
             </p>
           </div>
           <button
@@ -161,20 +186,64 @@ export function AppUsersModal({ open, onClose }: { open: boolean; onClose: () =>
           </button>
         </div>
 
+        {/* Filter pill row */}
+        <div
+          role="tablist"
+          aria-label="Filter app users"
+          style={{
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+            marginTop: 18,
+            marginBottom: 14,
+          }}
+        >
+          {FILTERS.map((f) => {
+            const isActive = filter === f.key;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => {
+                  setFilter(f.key);
+                  setPage(1);
+                }}
+                disabled={loading && isActive}
+                style={{
+                  background: isActive ? 'var(--neon)' : 'transparent',
+                  color: isActive ? '#0b0d0a' : 'var(--text-2)',
+                  border: `1px solid ${isActive ? 'var(--neon)' : 'var(--line)'}`,
+                  borderRadius: 999,
+                  padding: '6px 14px',
+                  fontSize: 12.5,
+                  fontWeight: isActive ? 700 : 500,
+                  cursor: loading ? 'wait' : 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+                }}
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Status row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 8px', fontSize: 13, color: 'var(--text-3)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0 8px', fontSize: 13, color: 'var(--text-3)' }}>
           <div>
             {loading && total === 0 ? (
               'Loading…'
             ) : total === 0 && !loading && !error ? (
-              'No active app users yet.'
+              <>No users match <strong style={{ color: 'var(--text-2)' }}>{activeFilterLabel}</strong>.</>
             ) : (
               <>Showing <strong style={{ color: 'var(--text)' }}>{startIdx}–{endIdx}</strong> of <strong style={{ color: 'var(--text)' }}>{total}</strong></>
             )}
           </div>
           <button
             type="button"
-            onClick={() => load(page)}
+            onClick={() => load(page, filter)}
             disabled={loading}
             style={{
               background: 'transparent',
@@ -222,7 +291,8 @@ export function AppUsersModal({ open, onClose }: { open: boolean; onClose: () =>
                   <tr style={{ background: 'var(--bg-2)' }}>
                     <Th>Email</Th>
                     <Th>Display name</Th>
-                    <Th>Program status</Th>
+                    <Th>Onboarding</Th>
+                    <Th>Program</Th>
                     <Th>Program started</Th>
                     <Th>Signed up</Th>
                   </tr>
@@ -230,7 +300,7 @@ export function AppUsersModal({ open, onClose }: { open: boolean; onClose: () =>
                 <tbody>
                   {users.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)' }}>
+                      <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)' }}>
                         No users to display.
                       </td>
                     </tr>
@@ -238,11 +308,16 @@ export function AppUsersModal({ open, onClose }: { open: boolean; onClose: () =>
                   {users.map((u) => (
                     <tr key={u.user_id} style={{ borderTop: '1px solid var(--line)' }}>
                       <Td mono>{u.email}</Td>
-                      <Td>{u.display_name || <span style={{ color: 'var(--text-3)' }}>—</span>}</Td>
+                      <Td>{u.display_name || <Dim>—</Dim>}</Td>
                       <Td>
-                        <StatusPill status={u.program_status} />
+                        <OnboardingPill done={u.completed_onboarding} />
                       </Td>
-                      <Td>{u.program_started_at ? formatEasternDate(u.program_started_at) : <span style={{ color: 'var(--text-3)' }}>—</span>}</Td>
+                      <Td>
+                        {u.program_status ? <ProgramPill status={u.program_status} /> : <Dim>None</Dim>}
+                      </Td>
+                      <Td>
+                        {u.program_started_at ? formatEasternDate(u.program_started_at) : <Dim>—</Dim>}
+                      </Td>
                       <Td>{formatEasternDate(u.signed_up_at)}</Td>
                     </tr>
                   ))}
@@ -317,8 +392,29 @@ function Td({ children, mono = false }: { children: React.ReactNode; mono?: bool
   );
 }
 
-function StatusPill({ status }: { status: 'active' | 'paused' }) {
-  const isActive = status === 'active';
+function Dim({ children }: { children: React.ReactNode }) {
+  return <span style={{ color: 'var(--text-3)' }}>{children}</span>;
+}
+
+/**
+ * ProgramPill — handles all program_state.status values, not just
+ * active/paused. Color-coded so the status is scannable at a glance.
+ */
+function ProgramPill({ status }: { status: string }) {
+  const colors = (() => {
+    switch (status) {
+      case 'active':
+        return { bg: 'rgba(196,255,61,0.12)', fg: 'var(--neon)', border: 'rgba(196,255,61,0.3)', dot: 'var(--neon)' };
+      case 'paused':
+        return { bg: 'rgba(255,184,77,0.14)', fg: '#ffb84d', border: 'rgba(255,184,77,0.35)', dot: '#ffb84d' };
+      case 'completed':
+        return { bg: 'rgba(125,211,252,0.12)', fg: '#7dd3fc', border: 'rgba(125,211,252,0.3)', dot: '#7dd3fc' };
+      case 'replaced':
+      case 'archived':
+      default:
+        return { bg: 'rgba(255,255,255,0.05)', fg: 'var(--text-3)', border: 'var(--line)', dot: 'var(--text-3)' };
+    }
+  })();
   return (
     <span
       style={{
@@ -330,9 +426,31 @@ function StatusPill({ status }: { status: 'active' | 'paused' }) {
         fontSize: 11.5,
         fontWeight: 600,
         textTransform: 'capitalize',
-        background: isActive ? 'rgba(196,255,61,0.12)' : 'rgba(255,184,77,0.14)',
-        color: isActive ? 'var(--neon)' : '#ffb84d',
-        border: `1px solid ${isActive ? 'rgba(196,255,61,0.3)' : 'rgba(255,184,77,0.35)'}`,
+        background: colors.bg,
+        color: colors.fg,
+        border: `1px solid ${colors.border}`,
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: colors.dot }} />
+      {status}
+    </span>
+  );
+}
+
+function OnboardingPill({ done }: { done: boolean }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '2px 10px',
+        borderRadius: 999,
+        fontSize: 11.5,
+        fontWeight: 600,
+        background: done ? 'rgba(196,255,61,0.10)' : 'rgba(255,255,255,0.04)',
+        color: done ? 'var(--neon)' : 'var(--text-3)',
+        border: `1px solid ${done ? 'rgba(196,255,61,0.25)' : 'var(--line)'}`,
       }}
     >
       <span
@@ -340,10 +458,10 @@ function StatusPill({ status }: { status: 'active' | 'paused' }) {
           width: 6,
           height: 6,
           borderRadius: '50%',
-          background: isActive ? 'var(--neon)' : '#ffb84d',
+          background: done ? 'var(--neon)' : 'var(--text-3)',
         }}
       />
-      {status}
+      {done ? 'Complete' : 'Incomplete'}
     </span>
   );
 }
