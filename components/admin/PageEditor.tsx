@@ -329,7 +329,7 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
 
             <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 24 }}>Hero video (optional)</h3>
             <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: -4, marginBottom: 12 }}>
-              Paste a YouTube URL to embed a video below the hero. Accepts <code>youtube.com/watch?v=…</code>, <code>youtu.be/…</code>, <code>youtube.com/shorts/…</code>, or <code>youtube.com/embed/…</code>. Leave blank to hide.
+              Paste a YouTube URL to embed a video at the very top of the /app page, above the page title. Accepts <code>youtube.com/watch?v=…</code>, <code>youtu.be/…</code>, <code>youtube.com/shorts/…</code>, or <code>youtube.com/embed/…</code>. Leave blank to hide.
             </p>
             <Field label="YouTube URL">
               <input
@@ -340,213 +340,125 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
               />
             </Field>
 
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 24 }}>How it works section</h3>
-            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
-              <Field label="Eyebrow tag">
-                <input className="input" value={content.how_it_works_eyebrow || ''} onChange={(e) => update(['how_it_works_eyebrow'], e.target.value)} />
-              </Field>
-              <Field label="Section heading">
-                <input className="input" value={content.how_it_works_heading || ''} onChange={(e) => update(['how_it_works_heading'], e.target.value)} />
-              </Field>
-            </div>
-            <ArrayEditor
-              title="Steps"
-              items={content.steps || []}
-              onAdd={() => addItem('steps', { title: '', desc: '' })}
-              onRemove={(i) => removeItem('steps', i)}
-              onMove={(i, d) => moveItem('steps', i, d)}
-              renderItem={(item, i) => (
-                <>
-                  <input className="input" placeholder="Step title (e.g. Subscribe to the newsletter)" value={item.title || ''} onChange={(e) => update(['steps', i, 'title'], e.target.value)} style={{ marginBottom: 8 }} />
-                  <textarea className="input" rows={2} placeholder="Description" value={item.desc || ''} onChange={(e) => update(['steps', i, 'desc'], e.target.value)} style={{ marginBottom: 8 }} />
-                  <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <input className="input" placeholder="CTA label (optional)" value={item.cta_label || ''} onChange={(e) => update(['steps', i, 'cta_label'], e.target.value)} />
-                    <input className="input" placeholder="CTA href (e.g. /subscribe)" value={item.cta_href || ''} onChange={(e) => update(['steps', i, 'cta_href'], e.target.value)} />
-                  </div>
-                </>
-              )}
-            />
-
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16 }}>What you get section</h3>
-            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
-              <Field label="Eyebrow tag">
-                <input className="input" value={content.features_eyebrow || ''} onChange={(e) => update(['features_eyebrow'], e.target.value)} />
-              </Field>
-              <Field label="Section heading">
-                <input className="input" value={content.features_heading || ''} onChange={(e) => update(['features_heading'], e.target.value)} />
-              </Field>
-            </div>
-
-            {/* Feature groups (rich cards with bullet lists). This is the
-                primary feature section as of May 2026. The legacy `features`
-                flat list below it is kept for back-compat but the live page
-                renders feature_groups in preference when present.
-
-                Bullet items are edited as a textarea — one line per bullet —
-                to make it impossible to accidentally produce nested/double
-                bullets. We parse split('\n') on display and join('\n') on
-                save. */}
-            <ArrayEditor
-              title="Feature groups (cards with bullet lists)"
-              items={content.feature_groups || []}
-              onAdd={() => addItem('feature_groups', { icon: '✨', title: '', desc: '', items: [] })}
-              onRemove={(i) => removeItem('feature_groups', i)}
-              onMove={(i, d) => moveItem('feature_groups', i, d)}
-              renderItem={(item, i) => (
-                <>
-                  <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8, marginBottom: 8 }}>
-                    <input className="input" placeholder="🎯" value={item.icon || ''} onChange={(e) => update(['feature_groups', i, 'icon'], e.target.value)} />
-                    <input className="input" placeholder="Title (e.g. Personalized training programs)" value={item.title || ''} onChange={(e) => update(['feature_groups', i, 'title'], e.target.value)} />
-                  </div>
-                  <textarea
-                    className="input"
-                    rows={3}
-                    placeholder="Short description (1–2 sentences)"
-                    value={item.desc || ''}
-                    onChange={(e) => update(['feature_groups', i, 'desc'], e.target.value)}
-                    style={{ marginBottom: 8 }}
-                  />
-                  <label className="label" style={{ marginTop: 4 }}>
-                    Bullet items <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>— one per line. Plain text only, no leading dashes or bullets.</span>
-                  </label>
-                  <textarea
-                    className="input"
-                    rows={6}
-                    placeholder={'Bullet item one\nBullet item two\nBullet item three'}
-                    value={(item.items || []).join('\n')}
-                    onChange={(e) =>
-                      update(
-                        ['feature_groups', i, 'items'],
-                        e.target.value.split('\n').map((s: string) => s.replace(/^[\s•·\-*]+/, '').trimEnd())
-                      )
-                    }
-                    style={{ fontFamily: 'monospace', fontSize: 13 }}
-                  />
-                </>
-              )}
-            />
-
-            <details style={{ marginTop: 12, marginBottom: 12 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--text-3)', padding: '6px 0' }}>
-                Legacy flat features list (only used if no feature groups above)
-              </summary>
-              <div style={{ marginTop: 8 }}>
-                <ArrayEditor
-                  title="Features (legacy)"
-                  items={content.features || []}
-                  onAdd={() => addItem('features', { icon: '✨', title: '', desc: '' })}
-                  onRemove={(i) => removeItem('features', i)}
-                  onMove={(i, d) => moveItem('features', i, d)}
-                  renderItem={(item, i) => (
-                    <div className="admin-grid-rowstack" style={{ display: 'grid', gridTemplateColumns: '60px 1fr', gap: 8 }}>
-                      <input className="input" placeholder="🎯" value={item.icon || ''} onChange={(e) => update(['features', i, 'icon'], e.target.value)} />
-                      <input className="input" placeholder="Title" value={item.title || ''} onChange={(e) => update(['features', i, 'title'], e.target.value)} />
-                      <div />
-                      <textarea className="input" rows={2} placeholder="Description" value={item.desc || ''} onChange={(e) => update(['features', i, 'desc'], e.target.value)} />
-                    </div>
-                  )}
-                />
-              </div>
-            </details>
-
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16 }}>Philosophy block (optional)</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 24 }}>Page content</h3>
             <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: -4, marginBottom: 12 }}>
-              Closing block after the features grid. Leave the heading blank to hide the entire section.
+              The /app page renders as a single-column document. Edit the page title, intro, and sections below. Each section can have an optional intro, and any number of subsections (each with optional title, intro, and a flat bullet list — no nested bullets).
             </p>
-            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
-              <Field label="Eyebrow tag">
-                <input className="input" value={content.philosophy_eyebrow || ''} onChange={(e) => update(['philosophy_eyebrow'], e.target.value)} />
-              </Field>
-              <Field label="Heading">
-                <input className="input" value={content.philosophy_heading || ''} onChange={(e) => update(['philosophy_heading'], e.target.value)} />
-              </Field>
-            </div>
-            <Field label="Body paragraph">
-              <textarea className="input" rows={3} value={content.philosophy_body || ''} onChange={(e) => update(['philosophy_body'], e.target.value)} />
-            </Field>
-            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <Field label='"What we avoid" list — one per line'>
-                <textarea
-                  className="input"
-                  rows={5}
-                  placeholder={'Overwhelming interfaces\nFitness-industry hype\nUnrealistic expectations'}
-                  value={(content.philosophy_avoid || []).join('\n')}
-                  onChange={(e) =>
-                    update(
-                      ['philosophy_avoid'],
-                      e.target.value.split('\n').map((s: string) => s.replace(/^[\s•·\-*]+/, '').trimEnd())
-                    )
-                  }
-                  style={{ fontFamily: 'monospace', fontSize: 13 }}
-                />
-              </Field>
-              <Field label='"What we focus on" list — one per line'>
-                <textarea
-                  className="input"
-                  rows={5}
-                  placeholder={'Long-term consistency\nPersonalized structure\nSustainable progression'}
-                  value={(content.philosophy_focus || []).join('\n')}
-                  onChange={(e) =>
-                    update(
-                      ['philosophy_focus'],
-                      e.target.value.split('\n').map((s: string) => s.replace(/^[\s•·\-*]+/, '').trimEnd())
-                    )
-                  }
-                  style={{ fontFamily: 'monospace', fontSize: 13 }}
-                />
-              </Field>
-            </div>
 
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16 }}>FAQ section</h3>
-            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
-              <Field label="Eyebrow tag">
-                <input className="input" value={content.faq_eyebrow || ''} onChange={(e) => update(['faq_eyebrow'], e.target.value)} />
-              </Field>
-              <Field label="Section heading">
-                <input className="input" value={content.faq_heading || ''} onChange={(e) => update(['faq_heading'], e.target.value)} />
-              </Field>
-            </div>
+            <Field label="Page title (H1)">
+              <input className="input" value={content.page_title || ''} onChange={(e) => update(['page_title'], e.target.value)} />
+            </Field>
+            <Field label="Page intro paragraph">
+              <textarea className="input" rows={4} placeholder="Lead paragraph that appears under the H1." value={content.page_intro || ''} onChange={(e) => update(['page_intro'], e.target.value)} />
+            </Field>
+
             <ArrayEditor
-              title="FAQ entries"
-              items={content.faqs || []}
-              onAdd={() => addItem('faqs', { q: '', a: '' })}
-              onRemove={(i) => removeItem('faqs', i)}
-              onMove={(i, d) => moveItem('faqs', i, d)}
-              renderItem={(item, i) => (
+              title="Sections"
+              items={content.doc_sections || []}
+              onAdd={() => addItem('doc_sections', { title: '', intro: '', subsections: [] })}
+              onRemove={(i) => removeItem('doc_sections', i)}
+              onMove={(i, d) => moveItem('doc_sections', i, d)}
+              renderItem={(section, si) => (
                 <>
-                  <input className="input" placeholder="Question" value={item.q || ''} onChange={(e) => update(['faqs', i, 'q'], e.target.value)} style={{ marginBottom: 8 }} />
-                  <textarea className="input" rows={3} placeholder="Answer (Markdown supported — links like [text](/path) work)" value={item.a || ''} onChange={(e) => update(['faqs', i, 'a'], e.target.value)} />
+                  <Field label="Section title (H2)">
+                    <input className="input" placeholder="e.g. Personalized Training Programs" value={section.title || ''} onChange={(e) => update(['doc_sections', si, 'title'], e.target.value)} />
+                  </Field>
+                  <Field label="Section intro (optional)">
+                    <textarea className="input" rows={3} placeholder="Optional paragraph that appears under the H2 (use a blank line for paragraph breaks)." value={section.intro || ''} onChange={(e) => update(['doc_sections', si, 'intro'], e.target.value)} />
+                  </Field>
+
+                  <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: '2px solid var(--line)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>
+                        Subsections
+                      </h4>
+                      <button
+                        onClick={() =>
+                          update(
+                            ['doc_sections', si, 'subsections'],
+                            [...(section.subsections || []), { title: '', intro: '', items: [] }]
+                          )
+                        }
+                        className="btn btn-ghost"
+                        style={{ padding: '5px 12px', fontSize: 12 }}
+                      >
+                        + Add subsection
+                      </button>
+                    </div>
+
+                    {(section.subsections || []).map((sub: any, ssi: number) => (
+                      <div key={ssi} style={{ background: 'var(--bg-2)', border: '1px solid var(--line)', borderRadius: 10, padding: 14, marginBottom: 8 }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginBottom: 8 }}>
+                          <button
+                            onClick={() => {
+                              const arr = [...(section.subsections || [])];
+                              const j = ssi - 1;
+                              if (j < 0) return;
+                              [arr[ssi], arr[j]] = [arr[j], arr[ssi]];
+                              update(['doc_sections', si, 'subsections'], arr);
+                            }}
+                            disabled={ssi === 0}
+                            style={miniBtn}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => {
+                              const arr = [...(section.subsections || [])];
+                              const j = ssi + 1;
+                              if (j >= arr.length) return;
+                              [arr[ssi], arr[j]] = [arr[j], arr[ssi]];
+                              update(['doc_sections', si, 'subsections'], arr);
+                            }}
+                            disabled={ssi === (section.subsections || []).length - 1}
+                            style={miniBtn}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            onClick={() => {
+                              const arr = (section.subsections || []).filter((_: any, i: number) => i !== ssi);
+                              update(['doc_sections', si, 'subsections'], arr);
+                            }}
+                            style={{ ...miniBtn, color: '#ff6b6b' }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+
+                        <Field label="Subsection title (H3, optional)">
+                          <input className="input" placeholder="e.g. Training plan customization includes:" value={sub.title || ''} onChange={(e) => update(['doc_sections', si, 'subsections', ssi, 'title'], e.target.value)} />
+                        </Field>
+                        <Field label="Subsection intro (optional)">
+                          <textarea className="input" rows={2} placeholder="Optional paragraph between the H3 and the bullet list." value={sub.intro || ''} onChange={(e) => update(['doc_sections', si, 'subsections', ssi, 'intro'], e.target.value)} />
+                        </Field>
+                        <Field label="Bullet items — one per line">
+                          <textarea
+                            className="input"
+                            rows={6}
+                            placeholder={'Item one\nItem two\nItem three'}
+                            value={(sub.items || []).join('\n')}
+                            onChange={(e) =>
+                              update(
+                                ['doc_sections', si, 'subsections', ssi, 'items'],
+                                e.target.value.split('\n').map((s: string) => s.replace(/^[\s•·\-*]+/, '').trimEnd())
+                              )
+                            }
+                            style={{ fontFamily: 'monospace', fontSize: 13 }}
+                          />
+                        </Field>
+                      </div>
+                    ))}
+
+                    {(section.subsections || []).length === 0 && (
+                      <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '4px 0 0' }}>
+                        No subsections yet. A section can have just an intro paragraph, or any number of subsections.
+                      </p>
+                    )}
+                  </div>
                 </>
               )}
             />
-
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 16 }}>Bottom CTA section</h3>
-            <Field label="Heading">
-              <input className="input" value={content.bottom_cta_heading || ''} onChange={(e) => update(['bottom_cta_heading'], e.target.value)} />
-            </Field>
-            <Field label="Subhead paragraph">
-              <textarea className="input" rows={2} value={content.bottom_cta_subhead || ''} onChange={(e) => update(['bottom_cta_subhead'], e.target.value)} />
-            </Field>
-            <div className="admin-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>
-                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text-2)' }}>Primary button</h4>
-                <Field label="Label">
-                  <input className="input" value={content.bottom_cta_primary_label || ''} onChange={(e) => update(['bottom_cta_primary_label'], e.target.value)} />
-                </Field>
-                <Field label="Href (URL)">
-                  <input className="input" value={content.bottom_cta_primary_href || ''} onChange={(e) => update(['bottom_cta_primary_href'], e.target.value)} />
-                </Field>
-              </div>
-              <div style={{ background: 'rgba(255,255,255,0.03)', padding: 16, borderRadius: 12 }}>
-                <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'var(--text-2)' }}>Secondary button</h4>
-                <Field label="Label">
-                  <input className="input" value={content.bottom_cta_secondary_label || ''} onChange={(e) => update(['bottom_cta_secondary_label'], e.target.value)} />
-                </Field>
-                <Field label="Href (URL)">
-                  <input className="input" value={content.bottom_cta_secondary_href || ''} onChange={(e) => update(['bottom_cta_secondary_href'], e.target.value)} />
-                </Field>
-              </div>
-            </div>
           </>
         )}
       </div>

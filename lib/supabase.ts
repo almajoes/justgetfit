@@ -273,6 +273,25 @@ export type AppPage = {
   bottom_cta_primary_href: string;
   bottom_cta_secondary_label: string;
   bottom_cta_secondary_href: string;
+
+  // ─── Doc-style page content (May 2026 redesign) ─────────────────────
+  // The /app page is now a single-column editorial document — page title,
+  // intro paragraph, then a flat sequence of sections. Each section can
+  // optionally include subsections, each with their own intro paragraph
+  // and a flat (single-level only) bullet list. The CTA fields above are
+  // still used by the AppCTA component on article pages, but the /app
+  // page itself ignores them in favor of this structure.
+  page_title?: string;
+  page_intro?: string;
+  doc_sections?: {
+    title: string;
+    intro?: string;
+    subsections?: {
+      title?: string;
+      intro?: string;
+      items?: string[];
+    }[];
+  }[];
 };
 
 export type PageSlug = 'home-hero' | 'about' | 'subscribe' | 'contact' | 'app';

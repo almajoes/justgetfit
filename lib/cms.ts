@@ -439,6 +439,307 @@ export const APP_DEFAULT: AppPage = {
   bottom_cta_primary_href: 'https://app.justgetfit.org',
   bottom_cta_secondary_label: 'Subscribe to the newsletter',
   bottom_cta_secondary_href: '/subscribe',
+
+  // ─── Doc-style /app page content ────────────────────────────────────
+  // Verbatim copy from the "JustGetFit App Features Overview" brief
+  // (May 2026). The /app page renders this in a single-column editorial
+  // layout. Edit via /admin/pages/app.
+  page_title: 'JustGetFit App Features',
+  page_intro:
+    'Built to simplify fitness without sacrificing personalization, JustGetFit.org combines intelligent training, adaptive nutrition, progress tracking, and long-term accountability into one unified fitness platform. The app is designed to feel less like a generic tracker — and more like a personalized coaching system that evolves with you over time.',
+  doc_sections: [
+    {
+      title: 'Personalized Training Programs',
+      intro:
+        'Every user receives a fully customized training plan based on their goals, experience level, available equipment, schedule, injuries, and preferred training duration. Plans are structured around real-world sustainability — not one-size-fits-all templates.',
+      subsections: [
+        {
+          title: 'Training plan customization includes:',
+          items: [
+            'Weight loss',
+            'Muscle building',
+            'Strength development',
+            'Endurance improvement',
+            'General fitness',
+            'Maintenance goals',
+            'Beginner to advanced experience levels',
+            'Home gym, commercial gym, or limited-equipment setups',
+            'Flexible training frequency and session durations',
+          ],
+        },
+        {
+          title: 'Smart workout structure',
+          intro: 'Each workout session includes:',
+          items: [
+            'Warm-up movements',
+            'Main working sets',
+            'Cooldowns and mobility work',
+            'Exercise substitutions',
+            'Coaching notes and technique guidance',
+            'RPE/intensity recommendations',
+            'Rest timing guidance',
+            'Progressive workout structure over time',
+          ],
+        },
+        {
+          intro: 'Users can also:',
+          items: [
+            'Log completed workouts',
+            'Track sets, reps, weight, and effort',
+            'Add workout notes',
+            'Edit historical workout entries later',
+            'View completed workout history inside the tracker system',
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Adaptive Meal Planning',
+      intro:
+        'JustGetFit includes fully personalized meal planning built around the user’s goals, dietary preferences, allergens, and daily training intent.',
+      subsections: [
+        {
+          title: 'Meal plan features',
+          items: [
+            'Daily calorie targets',
+            'Protein, carbohydrate, and fat targets',
+            'Training-day vs rest-day nutrition adjustments',
+            'Ingredient-level meal breakdowns',
+            'Grocery list generation',
+            'Flexible food preferences',
+            'Include/exclude foods when updating plans',
+            'Allergen-aware meal generation',
+            'Adjustable nutrition visibility for users who prefer less emphasis on macro tracking',
+          ],
+        },
+        {
+          title: 'Smart daily adjustments',
+          intro: 'Users can switch between:',
+          items: ['“I’m Training”', '“I’m Resting”'],
+        },
+        {
+          intro:
+            'The app intelligently adjusts meal routing and daily recommendations while preserving overall weekly training structure and progression integrity.',
+        },
+      ],
+    },
+    {
+      title: 'Fitness Tracker & Progress Monitoring',
+      intro:
+        'The tracker section gives users a centralized overview of their program progress, activity history, and consistency over time.',
+      subsections: [
+        {
+          title: 'Tracker capabilities',
+          items: [
+            'Workout completion history',
+            'Weekly progress overview',
+            'Session completion counts',
+            'Recent activity timeline',
+            'Editable workout logs',
+            'Program duration tracking',
+            'Past program archives',
+            'Historical progress comparisons',
+          ],
+        },
+        {
+          intro: 'The tracker remains fully accessible even when a program is paused.',
+        },
+      ],
+    },
+    {
+      title: 'Progress Photos',
+      intro: 'Users can upload and organize:',
+      subsections: [
+        {
+          items: ['Front photos', 'Side photos', 'Back photos'],
+        },
+        {
+          intro: 'for both:',
+          items: ['Program starting points', 'Program completion milestones'],
+        },
+        {
+          intro:
+            'Photos are securely stored and tied directly to individual fitness programs, creating long-term visual progress tracking across multiple transformation cycles.',
+        },
+      ],
+    },
+    {
+      title: 'Baseline & Weekly Check-Ins',
+      intro:
+        'The Baseline section preserves the user’s original onboarding information as a permanent reference point throughout the program lifecycle.',
+      subsections: [
+        {
+          title: 'Baseline tracking includes',
+          items: [
+            'Weight',
+            'Height',
+            'Goal selection',
+            'Fitness experience',
+            'Lifestyle preferences',
+            'Initial body metrics',
+            'Starting photos',
+          ],
+        },
+        {
+          intro: 'Users can also complete recurring weekly check-ins to monitor:',
+          items: [
+            'Weight changes',
+            'Energy levels',
+            'Recovery',
+            'Soreness',
+            'General program adherence',
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Pause & Resume Programs Anytime',
+      intro:
+        'JustGetFit was built around long-term sustainability — not unrealistic streak pressure.\n\nUsers can pause their program at any time without losing progress or disrupting their long-term timeline.',
+      subsections: [
+        {
+          title: 'Pause mode includes',
+          items: [
+            'Frozen daily progression',
+            'Frozen check-in schedules',
+            'Preserved training structure',
+            'Preserved nutrition structure',
+            'Continued access to trackers and historical data',
+            'Seamless resume functionality',
+          ],
+        },
+        {
+          intro: 'When resumed, the program continues exactly where the user left off.',
+        },
+      ],
+    },
+    {
+      title: 'Regenerate & Update Plans',
+      intro: 'Training and meal plans can evolve over time based on:',
+      subsections: [
+        {
+          items: [
+            'Injuries',
+            'Schedule changes',
+            'Food preference updates',
+            'New goals',
+            'Lifestyle adjustments',
+          ],
+        },
+        {
+          intro:
+            'Users can regenerate plans while preserving their broader program continuity and history. Previous plans are archived automatically for future reference.',
+        },
+      ],
+    },
+    {
+      title: 'Multiple Navigation Experiences',
+      intro: 'The app supports several viewing modes depending on user preference.',
+      subsections: [
+        {
+          title: 'Users can choose between:',
+          items: [
+            'Splash view (visual tile-based experience)',
+            'Focused single-section pages',
+            'All-in-one dashboard layout',
+          ],
+        },
+        {
+          intro:
+            'This allows users to interact with the platform in the way that feels most comfortable to them.',
+        },
+      ],
+    },
+    {
+      title: 'Mobile-Friendly Experience',
+      intro: 'The platform is designed to work seamlessly across:',
+      subsections: [
+        {
+          items: ['Desktop', 'Tablets', 'Mobile devices'],
+        },
+        {
+          intro: 'Features include:',
+          items: [
+            'Slide-out navigation drawer',
+            'Mobile workout tracking',
+            'Quick-access daily summaries',
+            'Session switching',
+            'Responsive layouts',
+            'Simplified day-to-day interactions',
+          ],
+        },
+      ],
+    },
+    {
+      title: 'Smart Program Lifecycle Management',
+      intro: 'Programs intelligently track:',
+      subsections: [
+        {
+          items: [
+            'Active status',
+            'Paused status',
+            'Completed status',
+            'Archived history',
+            'Program timelines',
+            'Effective training duration',
+          ],
+        },
+        {
+          intro:
+            'Completed programs are preserved inside a Past Programs archive so users can revisit previous transformations, plans, and progress photos.',
+        },
+      ],
+    },
+    {
+      title: 'Subscription & Account Management',
+      intro: 'Users can manage:',
+      subsections: [
+        {
+          items: [
+            'Profile settings',
+            'Units (imperial/metric)',
+            'Timezone preferences',
+            'Display preferences',
+            'Subscription status',
+            'Account details',
+            'Avatar uploads',
+          ],
+        },
+        {
+          intro: 'Authentication is handled through secure magic-link login functionality.',
+        },
+      ],
+    },
+    {
+      title: 'Designed Around Sustainability',
+      intro: 'JustGetFit was intentionally designed to avoid:',
+      subsections: [
+        {
+          items: [
+            'Overwhelming interfaces',
+            'Fitness-industry hype',
+            'Unrealistic expectations',
+            'Generic cookie-cutter plans',
+          ],
+        },
+        {
+          intro: 'Instead, the platform focuses on:',
+          items: [
+            'Long-term consistency',
+            'Personalized structure',
+            'Sustainable progression',
+            'Adaptability',
+            'Real-world usability',
+            'Coach-style guidance',
+          ],
+        },
+        {
+          intro:
+            'The experience is built to support users whether they’re just getting started or already deeply invested in their fitness journey.',
+        },
+      ],
+    },
+  ],
 };
 
 export const getHomeHero = () => getPage('home-hero', HOME_HERO_DEFAULT);
