@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Subscriber } from '@/lib/supabase';
+import { AppUsersModal } from '@/components/admin/AppUsersModal';
 
 type Stats = { total: number; confirmed: number; pending: number; unsubscribed: number };
 
@@ -16,6 +17,10 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
   // Sort state — pick a column and direction
   const [sortKey, setSortKey] = useState<'email' | 'status' | 'group' | 'subscribed'>('subscribed');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  // "Active app users" modal — opens via the button in the page header,
+  // fetches paginated data from /api/admin/app-users on open.
+  const [appUsersOpen, setAppUsersOpen] = useState(false);
   // Bulk-select state. Set of subscriber IDs the user has ticked in the table.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -207,10 +212,40 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
 
   return (
     <div className="admin-page-pad" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Subscribers</h1>
-      <p style={{ color: 'var(--text-2)', marginBottom: 32 }}>
-        Newsletter subscribers. Confirmed users receive the weekly Monday article.
-      </p>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 24,
+          marginBottom: 32,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ flex: '1 1 360px', minWidth: 0 }}>
+          <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Subscribers</h1>
+          <p style={{ color: 'var(--text-2)', margin: 0 }}>
+            Newsletter subscribers. Confirmed users receive the weekly Monday article.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAppUsersOpen(true)}
+          className="btn btn-ghost"
+          style={{
+            fontSize: 13,
+            padding: '10px 16px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          <span aria-hidden style={{ fontSize: 14 }}>📱</span>
+          Active app users
+        </button>
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, marginBottom: 32 }}>
         {[
@@ -527,6 +562,8 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
           </div>
         </div>
       )}
+
+      <AppUsersModal open={appUsersOpen} onClose={() => setAppUsersOpen(false)} />
     </div>
   );
 }
