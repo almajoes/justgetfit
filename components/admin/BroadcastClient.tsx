@@ -13,8 +13,7 @@ import {
 export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [testEmail, setTestEmail] = useState('');
-  const [sending, setSending] = useState<'none' | 'test' | 'broadcast'>('none');
+  const [sending, setSending] = useState<'none' | 'broadcast'>('none');
   const [message, setMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
   // When a broadcast is enqueued, server returns a job_id. We render <JobProgress />
   // for live updates and lock the form. User can click "Compose another" to reset.
@@ -31,27 +30,6 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
   const charCount = body.length;
   const subjectCharCount = subject.length;
   const canSend = subject.trim().length > 0 && body.trim().length > 0 && sending === 'none';
-
-  // ─── Test send ───────────────────────────────────────────────────────
-  async function sendTest() {
-    if (!testEmail.trim()) return;
-    setSending('test');
-    setMessage(null);
-    try {
-      const res = await fetch('/api/admin/broadcast/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: testEmail.trim(), subject, body_markdown: body }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setMessage({ kind: 'success', text: `Test sent to ${testEmail.trim()}.` });
-    } catch (err) {
-      setMessage({ kind: 'error', text: err instanceof Error ? err.message : 'Test send failed' });
-    } finally {
-      setSending('none');
-    }
-  }
 
   // ─── Real broadcast ──────────────────────────────────────────────────
   async function sendBroadcast() {
@@ -195,34 +173,6 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
         disabled={formDisabled}
         intro="Choose who receives this broadcast. Default is everyone confirmed."
       />
-
-      {/* TEST SEND */}
-      <div style={card}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Send a test first</div>
-        <p style={{ ...muted, marginBottom: 12 }}>
-          Send the email to yourself before blasting to subscribers. Subject is prefixed with{' '}
-          <code style={inlineCode}>[TEST]</code>.
-        </p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            type="email"
-            className="input"
-            value={testEmail}
-            onChange={(e) => setTestEmail(e.target.value)}
-            disabled={formDisabled}
-            placeholder="you@example.com"
-            style={{ flex: 1, minWidth: 240 }}
-          />
-          <button
-            onClick={sendTest}
-            disabled={!canSend || !testEmail.trim() || sending !== 'none'}
-            className="btn btn-ghost"
-            style={{ padding: '12px 20px', fontSize: 13 }}
-          >
-            {sending === 'test' ? 'Sending test…' : 'Send test'}
-          </button>
-        </div>
-      </div>
 
       {/* FULL BLAST */}
       <div
