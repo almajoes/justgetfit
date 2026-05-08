@@ -360,11 +360,14 @@ export function PageEditor({ slug, initialContent }: { slug: string; initialCont
             <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: -4, marginBottom: 12 }}>
               The /app page renders this Markdown as a single-column document below the hero video. Supported: <code>#</code> for the H1 page title, <code>##</code> for section headings, <code>###</code> for subsection headings, blank lines for paragraph breaks, <code>-</code> or <code>*</code> for bullet lists, <code>**bold**</code>, <code>*italic*</code>, and <code>[link](https://…)</code>. Nested bullets are flattened to a single level by design.
             </p>
+            <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: -4, marginBottom: 12 }}>
+              <strong style={{ color: 'var(--text-2)' }}>FAQ accordions:</strong> wrap a block of <code>##</code> questions between <code>## ::: faq</code> and <code>## :::</code> sentinels. Each <code>##</code> question becomes a collapsible item; the body underneath (until the next <code>##</code>) is the answer. The first item is open by default; readers can toggle each independently.
+            </p>
             <Field label="Markdown body">
               <textarea
                 className="input"
                 rows={30}
-                placeholder={'# Page Title\n\nLead paragraph goes here.\n\n## Section heading\n\nIntro paragraph.\n\n### Subsection\n\n- Bullet one\n- Bullet two\n'}
+                placeholder={'# Page Title\n\nLead paragraph goes here.\n\n## Section heading\n\nIntro paragraph.\n\n## ::: faq\n\n## How does it work?\n\nYou answer a few questions and we build a plan.\n\n## What if I miss a day?\n\nSwitch your meal plan to a rest day.\n\n## :::\n'}
                 value={content.page_markdown || ''}
                 onChange={(e) => update(['page_markdown'], e.target.value)}
                 style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, lineHeight: 1.55 }}
