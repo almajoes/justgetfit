@@ -1,26 +1,106 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import type { Topic } from '@/lib/supabase';
+
+/**
+ * <GenerateClient />
+ *
+ * Manual draft-generation UI on /admin/generate. Lists every unused topic
+ * in the queue with a checkbox; the admin selects which topics they want
+ * articles for, hits "Generate", and the client makes one POST per
+ * selected topic to /api/admin/batch-generate. Each request passes the
+ * selected topic's `topicId` so the API uses that exact topic instead of
+ * picking randomly.
+ *
+ * Helper buttons:
+ *   - "Random N" — selects N random topics from the list (replaces any
+ *     prior selection). For when you don't care which topics, just want
+ *     N drafts.
+ *   - "Select all" / "Clear" — quick toggles.
+ *
+ * Filters: dropdown to narrow by category. Selection persists across
+ * filter changes (you can pick from one category, switch to another, pick
+ * more, then generate the combined set).
+ *
+ * Empty queue: shows the "no topics yet" CTA with a button that calls
+ * /api/admin/topics/generate to seed 8 fresh topics.
+ */
 
 type ProgressItem = {
-  index: number;
-  title: string;
+  topicId: string;
+  topicTitle: string;
   status: 'pending' | 'success' | 'error';
+  resultTitle?: string;  // set on success — the draft's actual title
   error?: string;
 };
 
-export function GenerateClient({ unusedTopicCount }: { unusedTopicCount: number }) {
+const RANDOM_PRESETS = [3, 5, 10];
+
+export function GenerateClient({ unusedTopics }: { unusedTopics: Topic[] }) {
   const router = useRouter();
-  const [count, setCount] = useState(Math.max(1, Math.min(unusedTopicCount, 5)));
+  const total = unusedTopics.length;
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<ProgressItem[]>([]);
   const [done, setDone] = useState(false);
   const [generatingTopics, setGeneratingTopics] = useState(false);
   const [topicError, setTopicError] = useState<string | null>(null);
 
-  const canRun = unusedTopicCount > 0 && count > 0 && count <= unusedTopicCount && !running;
+  // Distinct categories for the filter dropdown. Sorted alphabetically so
+  // the dropdown order is stable as new topics arrive.
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of unusedTopics) set.add(t.category);
+    return Array.from(set).sort();
+  }, [unusedTopics]);
+
+  const visibleTopics = useMemo(() => {
+    if (categoryFilter === 'all') return unusedTopics;
+    return unusedTopics.filter((t) => t.category === categoryFilter);
+  }, [unusedTopics, categoryFilter]);
+
+  const selectedCount = selectedIds.size;
+  const canRun = selectedCount > 0 && !running;
+
+  function toggle(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const t of visibleTopics) next.add(t.id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function pickRandom(n: number) {
+    // Pick from VISIBLE topics so respecting the category filter is intuitive.
+    // Replaces any prior selection — this is a "give me N at random" gesture,
+    // not an additive one.
+    const pool = [...visibleTopics];
+    const k = Math.min(n, pool.length);
+    // Fisher-Yates shuffle, take first k
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    setSelectedIds(new Set(pool.slice(0, k).map((t) => t.id)));
+  }
 
   async function generateTopics() {
     setGeneratingTopics(true);
@@ -42,31 +122,42 @@ export function GenerateClient({ unusedTopicCount }: { unusedTopicCount: number 
   }
 
   async function runDraftBatch() {
-    setRunning(true);
-    setProgress([]);
-    setDone(false);
+    // Build the order from the current selection. We iterate over
+    // unusedTopics so the order matches the queue order (oldest first),
+    // but only include selected ones.
+    const selectedTopics = unusedTopics.filter((t) => selectedIds.has(t.id));
+    if (selectedTopics.length === 0) return;
 
-    const items: ProgressItem[] = Array.from({ length: count }, (_, i) => ({
-      index: i,
-      title: '',
+    setRunning(true);
+    setDone(false);
+    const initial: ProgressItem[] = selectedTopics.map((t) => ({
+      topicId: t.id,
+      topicTitle: t.title,
       status: 'pending',
     }));
-    setProgress(items);
+    setProgress(initial);
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < selectedTopics.length; i++) {
+      const t = selectedTopics[i];
       try {
-        const res = await fetch('/api/admin/batch-generate', { method: 'POST' });
+        const res = await fetch('/api/admin/batch-generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topicId: t.id }),
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         setProgress((prev) =>
           prev.map((p) =>
-            p.index === i ? { ...p, status: 'success', title: data.title || `Draft ${i + 1}` } : p
+            p.topicId === t.id
+              ? { ...p, status: 'success', resultTitle: data.title || t.title }
+              : p
           )
         );
       } catch (err) {
         setProgress((prev) =>
           prev.map((p) =>
-            p.index === i
+            p.topicId === t.id
               ? { ...p, status: 'error', error: err instanceof Error ? err.message : 'Failed' }
               : p
           )
@@ -76,55 +167,30 @@ export function GenerateClient({ unusedTopicCount }: { unusedTopicCount: number 
 
     setRunning(false);
     setDone(true);
+    // Clear selection so the user doesn't accidentally re-generate the
+    // same set on the next click. The page is also refreshed so the
+    // (now-used) topics drop off the list automatically.
+    setSelectedIds(new Set());
     router.refresh();
   }
 
   return (
-    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 880, margin: '0 auto' }}>
+    <div className="admin-page-pad" style={{ padding: 32, maxWidth: 980, margin: '0 auto' }}>
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>
         Generate articles
       </h1>
       <p style={{ color: 'var(--text-2)', marginBottom: 32, lineHeight: 1.6 }}>
-        Generates AI-drafted articles from your topic queue. Each draft lands in <Link href="/admin/drafts" style={{ color: 'var(--neon)' }}>Drafts</Link> for review before publishing. Each article takes ~30–60 seconds. Keep this tab open while generating.
+        Pick which topics you want articles for, then hit Generate. Each draft lands in{' '}
+        <Link href="/admin/drafts" style={{ color: 'var(--neon)' }}>Drafts</Link> for review before
+        publishing. Each article takes ~30–60 seconds. Keep this tab open while generating.
       </p>
 
-      {unusedTopicCount === 0 ? (
-        <div
-          style={{
-            background: 'var(--bg-1)',
-            border: '1px solid var(--line)',
-            borderRadius: 12,
-            padding: 32,
-            marginBottom: 24,
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: 36, marginBottom: 12 }}>💡</div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>No topics in the queue</h2>
-          <p style={{ color: 'var(--text-2)', marginBottom: 24, fontSize: 14, lineHeight: 1.6, maxWidth: 480, margin: '0 auto 24px' }}>
-            Add some topic ideas before you can generate articles. The fastest way is to let Claude suggest a fresh batch — they'll cover all 8 categories and avoid duplicates.
-          </p>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button
-              onClick={generateTopics}
-              disabled={generatingTopics}
-              className="btn btn-primary"
-              style={{ padding: '12px 24px', fontSize: 14 }}
-            >
-              {generatingTopics ? 'Generating 8 topics…' : '✨ Generate 8 topics with AI'}
-            </button>
-            <Link
-              href="/admin/topics"
-              className="btn btn-ghost"
-              style={{ padding: '12px 24px', fontSize: 14, textDecoration: 'none', display: 'inline-block' }}
-            >
-              Or add manually →
-            </Link>
-          </div>
-          {topicError && (
-            <p style={{ marginTop: 16, fontSize: 13, color: '#ff6b6b' }}>{topicError}</p>
-          )}
-        </div>
+      {total === 0 ? (
+        <EmptyTopicsCTA
+          generatingTopics={generatingTopics}
+          onGenerate={generateTopics}
+          error={topicError}
+        />
       ) : (
         <div
           style={{
@@ -135,58 +201,140 @@ export function GenerateClient({ unusedTopicCount }: { unusedTopicCount: number 
             marginBottom: 24,
           }}
         >
-          <div style={{ marginBottom: 16 }}>
-            <label className="label">How many drafts to generate?</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <input
-                type="number"
-                className="input"
-                value={count}
-                min={1}
-                max={unusedTopicCount}
-                onChange={(e) =>
-                  setCount(Math.max(1, Math.min(unusedTopicCount, parseInt(e.target.value) || 1)))
-                }
+          {/* Toolbar: filter + bulk-select helpers */}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 12,
+              marginBottom: 16,
+              paddingBottom: 16,
+              borderBottom: '1px solid var(--line)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label
+                htmlFor="cat-filter"
+                style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}
+              >
+                Category
+              </label>
+              <select
+                id="cat-filter"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
                 disabled={running}
-                style={{ maxWidth: 160 }}
-              />
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[3, 5, 10, 25].filter((n) => n <= unusedTopicCount).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setCount(n)}
-                    disabled={running}
-                    style={presetButton(count === n, running)}
-                  >
-                    {n}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setCount(unusedTopicCount)}
-                  disabled={running}
-                  style={presetButton(count === unusedTopicCount, running)}
-                >
-                  All ({unusedTopicCount})
-                </button>
-              </div>
+                className="input"
+                style={{ padding: '6px 10px', fontSize: 13, minWidth: 140 }}
+              >
+                <option value="all">All ({total})</option>
+                {categories.map((c) => {
+                  const count = unusedTopics.filter((t) => t.category === c).length;
+                  return (
+                    <option key={c} value={c}>
+                      {c} ({count})
+                    </option>
+                  );
+                })}
+              </select>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 8 }}>
-              {unusedTopicCount} unused topic{unusedTopicCount === 1 ? '' : 's'} available. Each article takes ~30–60 seconds.
-            </p>
+
+            <div style={{ flex: 1, minWidth: 0 }} />
+
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>Quick pick:</span>
+            {RANDOM_PRESETS.filter((n) => n <= visibleTopics.length).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => pickRandom(n)}
+                disabled={running}
+                style={ghostButton(running)}
+              >
+                Random {n}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={selectAllVisible}
+              disabled={running || visibleTopics.length === 0}
+              style={ghostButton(running)}
+            >
+              Select all{categoryFilter !== 'all' ? ` (${visibleTopics.length})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              disabled={running || selectedCount === 0}
+              style={ghostButton(running)}
+            >
+              Clear
+            </button>
           </div>
 
-          <button
-            onClick={runDraftBatch}
-            disabled={!canRun}
-            className="btn btn-primary"
-            style={{ padding: '12px 24px', fontSize: 14 }}
+          {/* Topic list */}
+          {visibleTopics.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+              No topics in this category. Switch category or{' '}
+              <Link href="/admin/topics" style={{ color: 'var(--neon)' }}>add some</Link>.
+            </div>
+          ) : (
+            <div
+              style={{
+                maxHeight: 420,
+                overflowY: 'auto',
+                border: '1px solid var(--line)',
+                borderRadius: 8,
+              }}
+            >
+              {visibleTopics.map((t, i) => (
+                <TopicRow
+                  key={t.id}
+                  topic={t}
+                  selected={selectedIds.has(t.id)}
+                  disabled={running}
+                  onToggle={() => toggle(t.id)}
+                  isLast={i === visibleTopics.length - 1}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Generate button + summary */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              marginTop: 16,
+              paddingTop: 16,
+              borderTop: '1px solid var(--line)',
+              flexWrap: 'wrap',
+            }}
           >
-            {running
-              ? `Generating ${progress.filter((p) => p.status !== 'pending').length} of ${count}…`
-              : `Generate ${count} draft${count === 1 ? '' : 's'}`}
-          </button>
+            <p style={{ fontSize: 13, color: 'var(--text-3)', margin: 0 }}>
+              {selectedCount === 0 ? (
+                <>Select at least one topic to generate.</>
+              ) : (
+                <>
+                  <strong style={{ color: 'var(--text)' }}>{selectedCount}</strong> topic
+                  {selectedCount === 1 ? '' : 's'} selected · ~{Math.round(selectedCount * 0.75)}–
+                  {selectedCount} min total
+                </>
+              )}
+            </p>
+            <button
+              onClick={runDraftBatch}
+              disabled={!canRun}
+              className="btn btn-primary"
+              style={{ padding: '12px 24px', fontSize: 14 }}
+            >
+              {running
+                ? `Generating ${progress.filter((p) => p.status !== 'pending').length} of ${progress.length}…`
+                : `Generate ${selectedCount} draft${selectedCount === 1 ? '' : 's'}`}
+            </button>
+          </div>
         </div>
       )}
 
@@ -223,18 +371,154 @@ export function GenerateClient({ unusedTopicCount }: { unusedTopicCount: number 
   );
 }
 
-function presetButton(active: boolean, running: boolean): React.CSSProperties {
-  return {
-    background: active ? 'var(--neon)' : 'transparent',
-    color: active ? '#000' : 'var(--text-2)',
-    border: `1px solid ${active ? 'var(--neon)' : 'var(--line-2)'}`,
-    padding: '6px 12px',
-    borderRadius: 6,
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: running ? 'not-allowed' : 'pointer',
-    fontFamily: 'inherit',
-  };
+// ─── Subcomponents ────────────────────────────────────────────────────
+
+function TopicRow({
+  topic,
+  selected,
+  disabled,
+  onToggle,
+  isLast,
+}: {
+  topic: Topic;
+  selected: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  isLast: boolean;
+}) {
+  return (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: '12px 14px',
+        borderBottom: isLast ? 'none' : '1px solid var(--line)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        background: selected ? 'rgba(196,255,61,0.05)' : 'transparent',
+        transition: 'background 0.12s',
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={onToggle}
+        disabled={disabled}
+        style={{
+          marginTop: 3,
+          accentColor: 'var(--neon)',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          width: 16,
+          height: 16,
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 10,
+            flexWrap: 'wrap',
+            marginBottom: topic.angle ? 4 : 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 500,
+              color: 'var(--text)',
+              lineHeight: 1.4,
+            }}
+          >
+            {topic.title}
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: 100,
+              background: 'rgba(196,255,61,0.10)',
+              color: 'var(--neon)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              flexShrink: 0,
+            }}
+          >
+            {topic.category}
+          </span>
+        </div>
+        {topic.angle && (
+          <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5 }}>
+            {topic.angle}
+          </div>
+        )}
+      </div>
+    </label>
+  );
+}
+
+function EmptyTopicsCTA({
+  generatingTopics,
+  onGenerate,
+  error,
+}: {
+  generatingTopics: boolean;
+  onGenerate: () => void;
+  error: string | null;
+}) {
+  return (
+    <div
+      style={{
+        background: 'var(--bg-1)',
+        border: '1px solid var(--line)',
+        borderRadius: 12,
+        padding: 32,
+        marginBottom: 24,
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ fontSize: 36, marginBottom: 12 }}>💡</div>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>No topics in the queue</h2>
+      <p
+        style={{
+          color: 'var(--text-2)',
+          marginBottom: 24,
+          fontSize: 14,
+          lineHeight: 1.6,
+          maxWidth: 480,
+          margin: '0 auto 24px',
+        }}
+      >
+        Add some topic ideas before you can generate articles. The fastest way is to let Claude
+        suggest a fresh batch — they'll cover all 8 categories and avoid duplicates.
+      </p>
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+        <button
+          onClick={onGenerate}
+          disabled={generatingTopics}
+          className="btn btn-primary"
+          style={{ padding: '12px 24px', fontSize: 14 }}
+        >
+          {generatingTopics ? 'Generating 8 topics…' : '✨ Generate 8 topics with AI'}
+        </button>
+        <Link
+          href="/admin/topics"
+          className="btn btn-ghost"
+          style={{
+            padding: '12px 24px',
+            fontSize: 14,
+            textDecoration: 'none',
+            display: 'inline-block',
+          }}
+        >
+          Or add manually →
+        </Link>
+      </div>
+      {error && <p style={{ marginTop: 16, fontSize: 13, color: '#ff6b6b' }}>{error}</p>}
+    </div>
+  );
 }
 
 function ProgressList({ items }: { items: ProgressItem[] }) {
@@ -249,15 +533,15 @@ function ProgressList({ items }: { items: ProgressItem[] }) {
         overflowY: 'auto',
       }}
     >
-      {items.map((item) => (
+      {items.map((item, i) => (
         <div
-          key={item.index}
+          key={item.topicId}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 12,
             padding: '12px 16px',
-            borderBottom: item.index < items.length - 1 ? '1px solid var(--line)' : 'none',
+            borderBottom: i < items.length - 1 ? '1px solid var(--line)' : 'none',
             fontSize: 13,
           }}
         >
@@ -289,7 +573,7 @@ function ProgressList({ items }: { items: ProgressItem[] }) {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ color: 'var(--text)', fontWeight: 500 }}>
-              {item.title || `Article ${item.index + 1}`}
+              {item.resultTitle || item.topicTitle}
             </div>
             {item.error && (
               <div style={{ color: '#ff6b6b', fontSize: 12, marginTop: 4 }}>{item.error}</div>
@@ -315,4 +599,20 @@ function ProgressList({ items }: { items: ProgressItem[] }) {
       ))}
     </div>
   );
+}
+
+function ghostButton(disabled: boolean): React.CSSProperties {
+  return {
+    background: 'transparent',
+    color: 'var(--text-2)',
+    border: '1px solid var(--line-2)',
+    padding: '6px 12px',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  };
 }

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminAuth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { generateDraft } from '@/lib/anthropic';
@@ -8,22 +8,85 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export async function POST() {
+/**
+ * POST /api/admin/batch-generate
+ *
+ * Generates a single draft article from the topic queue and inserts it into
+ * the drafts table. The client invokes this once per draft requested in a
+ * batch (so a "generate 5 drafts" run is 5 sequential POSTs).
+ *
+ * Body (all optional):
+ *   - topicId: string  — if provided, use this exact topic (must be in the
+ *                        topics table and not yet used). If omitted, picks a
+ *                        random unused topic from the queue (legacy behavior).
+ *
+ * The topicId path is what powers the "choose topics" UX on
+ * /admin/generate — the client passes one selected topic ID per call so
+ * each draft maps to a specific picked topic.
+ */
+export async function POST(req: NextRequest) {
   const auth = checkAdminAuth();
   if (!auth.ok) return auth.response;
 
+  // Parse body defensively — empty body, malformed JSON, etc. all collapse
+  // to "no topicId" → random pick.
+  let topicId: string | null = null;
   try {
-    const { data: topics } = await supabaseAdmin
-      .from('topics')
-      .select('*')
-      .is('used_at', null)
-      .limit(50);
+    const body = await req.json().catch(() => null);
+    if (body && typeof body.topicId === 'string' && body.topicId.length > 0) {
+      topicId = body.topicId;
+    }
+  } catch {
+    // ignore — fall through to random pick
+  }
 
-    if (!topics || topics.length === 0) {
-      return NextResponse.json({ error: 'No unused topics' }, { status: 400 });
+  try {
+    let topic: { id: string; title: string; category: string; angle: string | null } | null = null;
+
+    if (topicId) {
+      // Targeted pick: fetch the specific topic and verify it's unused.
+      // Race-safety: the unused-check is best-effort here; the final
+      // mark-as-used UPDATE below is what actually claims the topic. If
+      // two concurrent calls target the same topic, both will get drafts
+      // generated but both will set used_at to (effectively) the same
+      // timestamp — harmless, just a duplicate the admin can delete.
+      const { data, error } = await supabaseAdmin
+        .from('topics')
+        .select('id, title, category, angle, used_at')
+        .eq('id', topicId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        return NextResponse.json({ error: 'Topic not found' }, { status: 404 });
+      }
+      if (data.used_at) {
+        return NextResponse.json(
+          { error: 'Topic has already been used. Refresh the page to see the latest queue.' },
+          { status: 409 }
+        );
+      }
+      topic = data;
+    } else {
+      // Random pick: pull up to 50 unused topics and choose one. Matches
+      // the prior behavior so existing call sites that don't pass topicId
+      // keep working.
+      const { data: topics } = await supabaseAdmin
+        .from('topics')
+        .select('id, title, category, angle')
+        .is('used_at', null)
+        .limit(50);
+      if (!topics || topics.length === 0) {
+        return NextResponse.json({ error: 'No unused topics' }, { status: 400 });
+      }
+      topic = topics[Math.floor(Math.random() * topics.length)];
     }
 
-    const topic = topics[Math.floor(Math.random() * topics.length)];
+    if (!topic) {
+      // Defensive — should be unreachable since both branches above either
+      // assign topic or return early.
+      return NextResponse.json({ error: 'No topic resolved' }, { status: 500 });
+    }
+
     const generated = await generateDraft({
       title: topic.title,
       category: topic.category,
