@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminAuth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { createEmailJob, triggerWorker } from '@/lib/email-jobs';
+import { buildThrottleExclusions } from '@/lib/throttle';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -117,17 +118,20 @@ export async function POST(req: NextRequest) {
  * mode='list': intersect supplied IDs with confirmed-status subscribers, in
  *              URL-safe chunks (.in() serializes to URL params; large lists
  *              would otherwise hit ~8KB URL limits).
+ *
+ * THROTTLE (May 2026 update — twice-weekly cadence):
+ *   Applied AFTER the audience is resolved. Excludes subscribers with
+ *   source='import' AND >= 2 sent events in the past 7 rolling days.
+ *   Form-subscribers and any custom-source-label subscribers are exempt.
+ *   See lib/throttle.ts. Broadcasts use a separate code path and are NOT
+ *   throttled — that's intentional.
  */
 async function resolveRecipientIds(
   mode: 'all' | 'list',
   suppliedIds: string[] | null
 ): Promise<string[]> {
   const PAGE = 1000;
-  const out: string[] = [];
-
-  // 7-day throttle: exclude subs who received a newsletter in past 7 days.
-  // Prevents over-mailing during multi-publish weeks. Broadcasts skip this.
-  const throttleCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const resolved: { id: string; email: string; source: string | null }[] = [];
 
   if (mode === 'list' && suppliedIds) {
     const ids = suppliedIds.filter((id): id is string => typeof id === 'string');
@@ -137,38 +141,39 @@ async function resolveRecipientIds(
       const chunk = ids.slice(i, i + URL_CHUNK);
       const { data, error } = await supabaseAdmin
         .from('subscribers')
-        .select('id')
+        .select('id, email, source')
         .eq('status', 'confirmed')
-        .or(`last_sent_at.is.null,last_sent_at.lt.${throttleCutoff}`)
         .in('id', chunk);
       if (error) {
         console.error('[newsletter/send] recipient lookup failed:', error.message);
-        return out;
+        return [];
       }
-      for (const row of data || []) out.push(row.id);
+      for (const row of (data as { id: string; email: string; source: string | null }[]) || []) {
+        resolved.push(row);
+      }
     }
-    return out;
+  } else {
+    // mode === 'all'
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabaseAdmin
+        .from('subscribers')
+        .select('id, email, source')
+        .eq('status', 'confirmed')
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        console.error('[newsletter/send] recipient lookup failed:', error.message);
+        return [];
+      }
+      const batch = (data as { id: string; email: string; source: string | null }[]) || [];
+      for (const row of batch) resolved.push(row);
+      if (batch.length < PAGE) break;
+      from += PAGE;
+      if (from > 200000) break; // safety bail
+    }
   }
 
-  // mode === 'all'
-  let from = 0;
-  while (true) {
-    const { data, error } = await supabaseAdmin
-      .from('subscribers')
-      .select('id')
-      .eq('status', 'confirmed')
-      .or(`last_sent_at.is.null,last_sent_at.lt.${throttleCutoff}`)
-      .order('id', { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) {
-      console.error('[newsletter/send] recipient lookup failed:', error.message);
-      return out;
-    }
-    const batch = data || [];
-    for (const row of batch) out.push(row.id);
-    if (batch.length < PAGE) break;
-    from += PAGE;
-    if (from > 200000) break; // safety bail
-  }
-  return out;
+  const exclusions = await buildThrottleExclusions(resolved);
+  return resolved.filter((s) => !exclusions.has(s.id)).map((s) => s.id);
 }

@@ -49,7 +49,7 @@ function pct(n: number, d: number): string {
 
 // Subscribers for the ResendPanel come from the centralized
 // loadConfirmedSubscribers() helper in lib/subscribers, which returns the
-// last_sent_at field that the picker's 7-day throttle filter requires.
+// recent_send_count field that the picker's throttle filter requires.
 // Without that field, the throttle filter silently no-ops and the picker
 // shows the full unfiltered audience.
 

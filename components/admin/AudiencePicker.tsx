@@ -26,11 +26,20 @@ export type Subscriber = {
   email: string;
   source: string | null;
   subscribed_at: string;
-  // last_sent_at is used by the picker to identify subscribers who would be
-  // throttled (skipped) by the 7-day-newsletter cooldown. Optional — older
-  // callers without this field will treat all subscribers as never-mailed,
-  // which is safe behavior.
+  // last_sent_at is the most-recent sent timestamp. Still surfaced for
+  // display (admin Subscribers table). NOT used for throttle decisions
+  // anymore — the throttle counts actual sends in the past 7d via
+  // `recent_send_count` below.
   last_sent_at?: string | null;
+  /**
+   * Number of `sent` email_events for this subscriber's email in the past
+   * 7 rolling days. Throttle rule (May 2026): subscribers with
+   * source === 'import' AND recent_send_count >= 2 are filtered out of
+   * newsletter audiences. All other sources (form, custom labels) are
+   * exempt regardless of this count. Optional for back-compat — older
+   * callers that don't supply this get 0, which means no throttle applies.
+   */
+  recent_send_count?: number;
 };
 
 export type AudienceMode = 'all' | 'source' | 'pick' | 'random';
@@ -89,14 +98,27 @@ export function defaultAudienceValue(): AudienceValue {
  * downstream logic (sample pool size, Fisher-Yates, dedup loop) operates on
  * a clean unique-id array.
  *
- * `throttle` parameter (default false): when true, subscribers with
- * last_sent_at within the past 7 days are filtered out BEFORE any mode
- * logic runs. Newsletter contexts (DraftEditor, ResendPanel) pass true.
- * Broadcasts pass false (intentional). Must match the throttle prop on the
- * <AudiencePicker /> for consistent behavior between picker display and
- * parent send-button count.
+ * `throttle` parameter (default false): when true, subscribers who match
+ * the throttle policy are filtered out BEFORE any mode logic runs.
+ * Newsletter contexts (DraftEditor, ResendPanel) pass true. Broadcasts
+ * pass false (intentional).
+ *
+ * Throttle policy (May 2026):
+ *   - Applies ONLY to subscribers with source === 'import'
+ *   - Excludes those with >= 2 sends in the past 7 rolling days
+ *   - All other sources (form-subscribed, custom labels) are exempt
+ *
+ * The throttle uses `recent_send_count` carried on each subscriber row
+ * (computed by lib/subscribers.ts loader from email_events). Must match
+ * the throttle prop on the <AudiencePicker /> for consistent behavior
+ * between picker display and parent send-button count.
  */
-const RESOLVE_THROTTLE_MS = 7 * 24 * 60 * 60 * 1000;
+const THROTTLE_LIMIT = 2;
+const THROTTLE_SOURCE = 'import';
+
+function isSubscriberThrottled(s: Subscriber): boolean {
+  return s.source === THROTTLE_SOURCE && (s.recent_send_count ?? 0) >= THROTTLE_LIMIT;
+}
 
 export function resolveAudience(
   subscribers: Subscriber[],
@@ -114,13 +136,11 @@ export function resolveAudience(
   }
   subscribers = uniqueSubs;
 
-  // Apply 7-day throttle filter if requested (newsletter context).
+  // Apply throttle filter if requested (newsletter context). See header
+  // comment for the policy. Anyone whose source isn't 'import' passes
+  // through automatically.
   if (throttle) {
-    const cutoff = Date.now() - RESOLVE_THROTTLE_MS;
-    subscribers = subscribers.filter((s) => {
-      const lastSent = s.last_sent_at ? new Date(s.last_sent_at).getTime() : 0;
-      return lastSent <= cutoff;
-    });
+    subscribers = subscribers.filter((s) => !isSubscriberThrottled(s));
   }
 
   if (v.mode === 'all') {
@@ -209,13 +229,17 @@ export function AudiencePicker({
   disabled?: boolean;
   intro?: string;
   /**
-   * When true (newsletter context), subscribers with last_sent_at within the
-   * past 7 days are filtered out of the picker entirely — every count, every
-   * mode, every random sample pool operates on the eligible-only list. A
-   * banner shows the excluded count for transparency.
+   * When true (newsletter context), the throttle policy is applied:
+   * subscribers with source === 'import' AND >= 2 sends in the past 7 days
+   * are filtered out of the picker entirely — every count, every mode,
+   * every random sample pool operates on the eligible-only list. A banner
+   * shows the excluded count for transparency.
    *
-   * When false (broadcast context, default), the picker shows everyone — the
-   * 7-day throttle does not apply to broadcasts by user policy.
+   * Form-subscribers and any custom-source-label subscribers are ALWAYS
+   * exempt from the throttle, regardless of how recently they were mailed.
+   *
+   * When false (broadcast context, default), no throttle is applied and
+   * the picker shows everyone.
    */
   throttle?: boolean;
 }) {
@@ -235,29 +259,25 @@ export function AudiencePicker({
     return out;
   }, [rawSubscribers]);
 
-  // Apply 7-day throttle filter (newsletters only). The filtered array is
-  // what every mode below operates on, so counts, search results, and random
-  // sample pools all naturally exclude throttled subscribers. The throttled
-  // count is shown in a banner so the user knows the picker is showing a
-  // reduced pool.
-  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  // Apply throttle filter (newsletters only). See policy in the resolveAudience
+  // header comment above. Imported subs with >= 2 sends in the past 7 days are
+  // hidden; the throttled count is shown in a banner below so the user knows
+  // the picker is showing a reduced pool.
   const { subscribers, throttledCount } = useMemo(() => {
     if (!throttle) {
       return { subscribers: dedupedSubscribers, throttledCount: 0 };
     }
-    const cutoff = Date.now() - SEVEN_DAYS_MS;
     const eligible: Subscriber[] = [];
     let throttled = 0;
     for (const s of dedupedSubscribers) {
-      const lastSent = s.last_sent_at ? new Date(s.last_sent_at).getTime() : 0;
-      if (lastSent > cutoff) {
+      if (isSubscriberThrottled(s)) {
         throttled++;
       } else {
         eligible.push(s);
       }
     }
     return { subscribers: eligible, throttledCount: throttled };
-  }, [dedupedSubscribers, throttle, SEVEN_DAYS_MS]);
+  }, [dedupedSubscribers, throttle]);
 
   const [pickerSearch, setPickerSearch] = useState('');
 
@@ -337,7 +357,7 @@ export function AudiencePicker({
             lineHeight: 1.5,
           }}
         >
-          <strong>{throttledCount.toLocaleString()}</strong> subscriber{throttledCount === 1 ? '' : 's'} hidden — already received a newsletter in the past 7 days (1-per-week throttle). They&apos;ll be eligible again on a rolling basis as their 7-day window passes.
+          <strong>{throttledCount.toLocaleString()}</strong> imported subscriber{throttledCount === 1 ? '' : 's'} hidden — already received 2 newsletters in the past 7 days. They&apos;ll be eligible again on a rolling basis as their oldest send ages off the 7-day window. (Throttle applies to <code style={{ background: 'rgba(255,184,77,0.12)', padding: '1px 5px', borderRadius: 3 }}>source = &lsquo;import&rsquo;</code> only.)
         </div>
       )}
 
