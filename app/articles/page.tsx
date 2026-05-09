@@ -71,7 +71,7 @@ export default async function ArticlesPage({
                 ? 'The first article ships soon.'
                 : `${total} article${total === 1 ? '' : 's'} published${
                     totalPages > 1 ? ` · Page ${page} of ${totalPages}` : ''
-                  }. New post every Monday.`}
+                  }. New articles twice a week.`}
             </p>
 
             {allPosts.length > 0 ? (
@@ -114,8 +114,8 @@ export default async function ArticlesPage({
             </div>
 
             <div className="sidebar-card sidebar-newsletter">
-              <h4 style={{ color: 'var(--neon)' }}>Get every Monday article</h4>
-              <p>Subscribe and get next Monday's article delivered to your inbox.</p>
+              <h4 style={{ color: 'var(--neon)' }}>Twice a week, in your inbox</h4>
+              <p>Subscribe and get every new article delivered straight to your inbox.</p>
               <form action="/api/subscribe" method="POST">
                 <input name="email" type="email" placeholder="you@example.com" required />
                 <input type="hidden" name="source" value="articles-sidebar" />

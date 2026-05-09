@@ -291,7 +291,7 @@ export async function sendConfirmationEmail(email: string, token: string): Promi
       One click to confirm.
     </h1>
     <p style="font-size:17px;line-height:1.6;color:${BRAND.text};margin:0 0 28px;">
-      Thanks for subscribing to <strong style="font-weight:700;">Just Get Fit</strong>. Tap the button below to confirm your email and start getting our weekly Monday article.
+      Thanks for subscribing to <strong style="font-weight:700;">Just Get Fit</strong>. Tap the button below to confirm your email and start getting our articles twice a week.
     </p>
     <p style="margin:0 0 32px;">
       <a href="${confirmUrl}" style="display:inline-block;background:${BRAND.neon};color:${BRAND.bgDark};padding:16px 32px;border-radius:100px;font-weight:700;text-decoration:none;font-size:14px;letter-spacing:0.02em;">
@@ -320,7 +320,7 @@ export async function sendConfirmationEmail(email: string, token: string): Promi
 
 One click to confirm.
 
-Thanks for subscribing to Just Get Fit. Visit this link to confirm your email and start getting our weekly Monday article:
+Thanks for subscribing to Just Get Fit. Visit this link to confirm your email and start getting our articles twice a week:
 
 ${confirmUrl}
 

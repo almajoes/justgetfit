@@ -88,7 +88,7 @@ export function DraftsClient({
       <div className="space-y-3 mb-12">
         {pending.length === 0 ? (
           <p className="italic" style={{ color: 'var(--text-3)' }}>
-            No pending drafts. The cron runs every Monday.
+            No pending drafts. The cron runs twice a week (Mondays and Fridays).
           </p>
         ) : (
           pending.map((d) => (

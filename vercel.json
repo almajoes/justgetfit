@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/generate-draft",
-      "schedule": "0 13 * * 1"
+      "schedule": "0 13 * * 1,5"
     },
     {
       "path": "/api/cron/aggregate-analytics",

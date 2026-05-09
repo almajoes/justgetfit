@@ -92,8 +92,8 @@ export default async function AboutPage() {
             </div>
 
             <div className="sidebar-card sidebar-newsletter">
-              <h4 style={{ color: 'var(--neon)' }}>Get every Monday article</h4>
-              <p>One article in your inbox every Monday morning. No spam, ever.</p>
+              <h4 style={{ color: 'var(--neon)' }}>Twice a week, in your inbox</h4>
+              <p>New articles twice a week, straight to your inbox. No spam, ever.</p>
               <form action="/api/subscribe" method="POST">
                 <input name="email" type="email" placeholder="you@example.com" required />
                 <input type="hidden" name="source" value="about-sidebar" />

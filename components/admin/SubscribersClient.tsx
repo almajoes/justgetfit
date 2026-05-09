@@ -225,7 +225,7 @@ export function SubscribersClient({ subscribers, stats }: { subscribers: Subscri
         <div style={{ flex: '1 1 360px', minWidth: 0 }}>
           <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Subscribers</h1>
           <p style={{ color: 'var(--text-2)', margin: 0 }}>
-            Newsletter subscribers. Confirmed users receive the weekly Monday article.
+            Newsletter subscribers. Confirmed users receive new articles twice a week.
           </p>
         </div>
         <button

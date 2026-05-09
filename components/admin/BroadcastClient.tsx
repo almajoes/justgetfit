@@ -106,7 +106,7 @@ export function BroadcastClient({ subscribers }: { subscribers: Subscriber[] }) 
       <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Broadcast</h1>
       <p style={{ color: 'var(--text-2)', marginBottom: 32, lineHeight: 1.6 }}>
         Send an off-cycle email to a chosen set of subscribers. Use this for announcements, schedule changes,
-        or anything outside the standard Monday article.
+        or anything outside the regular twice-a-week article.
       </p>
 
       {/* Active job: show progress at the top + offer reset */}

@@ -9,7 +9,7 @@ export const revalidate = 60;
 
 export const metadata = {
   title: 'Subscribe',
-  description: 'Get every Just Get Fit article in your inbox, every Monday.',
+  description: 'Get every Just Get Fit article in your inbox, twice a week.',
 };
 
 export default async function SubscribePageRoute({
@@ -33,7 +33,7 @@ export default async function SubscribePageRoute({
           fontWeight: 500,
         }}
       >
-        Subscription confirmed — you're in. See you Monday.
+        Subscription confirmed — you're in. First article hits your inbox soon.
       </div>
     ) : null;
 

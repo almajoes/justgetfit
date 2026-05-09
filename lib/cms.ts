@@ -41,7 +41,7 @@ const SITE_DEFAULTS: SiteSettings = {
 };
 
 const FOOTER_DEFAULTS: FooterSettings = {
-  brand_tagline: 'Evidence-based fitness writing on training, nutrition, recovery, and the long game. New article every Monday — stronger, every day.',
+  brand_tagline: 'Evidence-based fitness writing on training, nutrition, recovery, and the long game. New articles twice a week — stronger, every day.',
   copyright: '© 2026 Just Get Fit. Stronger. Every day. Nothing here is medical advice.',
   version_label: 'v1.0',
 };
@@ -123,7 +123,7 @@ export function deepMerge<T>(base: T, override: any): T {
 }
 
 export const HOME_HERO_DEFAULT: HomeHeroPage = {
-  pill_text: 'New article every Monday · Evidence-based',
+  pill_text: 'New articles twice a week · Evidence-based',
   headline_part1: 'Stronger.',
   headline_accent: 'Every',
   headline_part2: 'day.',

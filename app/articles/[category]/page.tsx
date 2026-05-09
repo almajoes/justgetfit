@@ -124,8 +124,8 @@ export default async function CategoryPage({
             </div>
 
             <div className="sidebar-card sidebar-newsletter">
-              <h4 style={{ color: 'var(--neon)' }}>Get every Monday article</h4>
-              <p>Subscribe and get next Monday's article delivered to your inbox.</p>
+              <h4 style={{ color: 'var(--neon)' }}>Twice a week, in your inbox</h4>
+              <p>Subscribe and get every new article delivered straight to your inbox.</p>
               <form action="/api/subscribe" method="POST">
                 <input name="email" type="email" placeholder="you@example.com" required />
                 <input type="hidden" name="source" value={`category-${params.category}`} />
