@@ -46,7 +46,17 @@ export async function generateMetadata({ params }: { params: { category: string;
   // Verify category matches — if not, no metadata (page will 404)
   if (post.category !== params.category) return {};
   const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
-  const ogImage = post.cover_image_url || `${SITE_URL}/og-image.png`;
+
+  // OG image: use the cover image, but for Unsplash URLs we APPEND size +
+  // crop params so the served image actually matches the declared 1200×630.
+  // Without this, social scrapers (LinkedIn especially) reject the OG image
+  // because the declared dimensions don't match what they fetched, causing
+  // featured images to silently disappear from shared-link previews.
+  // Unsplash supports `?w=1200&h=630&fit=crop&crop=edges&fm=jpg&q=85` —
+  // Imgix params under the hood.
+  const ogImage = post.cover_image_url
+    ? withOgSizing(post.cover_image_url)
+    : `${SITE_URL}/og-image.png`;
   const url = `${SITE_URL}/articles/${post.category}/${post.slug}`;
   return {
     title: post.title,
@@ -70,6 +80,37 @@ export async function generateMetadata({ params }: { params: { category: string;
       images: [ogImage],
     },
   };
+}
+
+/**
+ * Force a cover-image URL to render at 1200×630 with edge-aware cropping
+ * so the dimensions declared in OG metadata match the actual image bytes
+ * social scrapers fetch. Currently only does anything for Unsplash URLs
+ * (images.unsplash.com) since that's where 100% of cover images come from
+ * — see lib/unsplash.ts. For non-Unsplash URLs (manual edits, etc.) we
+ * pass the URL through unchanged and accept that the dimensions might not
+ * match. If that becomes a problem we can extend this with cdn-specific
+ * handlers, or proxy through our own resizer.
+ */
+function withOgSizing(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith('images.unsplash.com')) {
+      // Strip any size-shaping params Unsplash already had on the URL,
+      // then add ours. Imgix tolerates duplicate keys but we prefer clean
+      // canonical URLs that scrapers can cache cleanly.
+      u.searchParams.set('w', '1200');
+      u.searchParams.set('h', '630');
+      u.searchParams.set('fit', 'crop');
+      u.searchParams.set('crop', 'edges');
+      u.searchParams.set('fm', 'jpg');
+      u.searchParams.set('q', '85');
+      return u.toString();
+    }
+  } catch {
+    // malformed URL — fall through
+  }
+  return url;
 }
 
 const CATEGORY_GRADIENTS: Record<string, string> = {
