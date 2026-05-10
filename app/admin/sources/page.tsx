@@ -18,16 +18,17 @@ export const metadata = { title: 'Sources · Admin' };
  * the URL-checking interactions.
  */
 
-type PostRow = Pick<Post, 'id' | 'slug' | 'title' | 'category' | 'published_at' | 'sources'>;
+type PostRow = Pick<Post, 'id' | 'slug' | 'title' | 'category' | 'published_at' | 'sources' | 'rejected_sources'>;
 
 export default async function SourcesAdminPage() {
   // Pull posts. We want title/slug/category for navigation, sources for
-  // the listing. Filter to posts that exist (deleted ones obviously
-  // can't be on the page) but include ones with null/empty sources so
-  // the "uncited" tab can show them.
+  // the listing, rejected_sources for the new review tab. Filter to
+  // posts that exist (deleted ones obviously can't be on the page) but
+  // include ones with null/empty sources so the "uncited" tab can show
+  // them.
   const { data, error } = await supabaseAdmin
     .from('posts')
-    .select('id, slug, title, category, published_at, sources')
+    .select('id, slug, title, category, published_at, sources, rejected_sources')
     .order('published_at', { ascending: false });
 
   if (error) {
@@ -49,6 +50,10 @@ export default async function SourcesAdminPage() {
     neverRun: posts.filter((p) => p.sources === null || p.sources === undefined).length,
     totalSources: posts.reduce(
       (sum, p) => sum + (Array.isArray(p.sources) ? p.sources.length : 0),
+      0
+    ),
+    totalRejected: posts.reduce(
+      (sum, p) => sum + (Array.isArray(p.rejected_sources) ? p.rejected_sources.length : 0),
       0
     ),
   };

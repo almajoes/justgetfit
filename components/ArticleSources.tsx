@@ -70,6 +70,12 @@ export function ArticleSources({ sources }: { sources: Source[] | null | undefin
                 fontWeight: 700,
                 color: 'var(--neon)',
                 minWidth: 28,
+                // Some browser+OS combinations render bracketed digits
+                // as emoji-keycap glyphs (multi-color squares). Forcing
+                // a non-emoji font stack here keeps "[N]" rendering as
+                // ordinary text.
+                fontFamily:
+                  'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
               }}
             >
               [{s.n}]

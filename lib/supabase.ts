@@ -32,6 +32,10 @@ export type Post = {
   // Citations (May 2026): array of source entries that the inline [N]
   // markers in `content` reference. Null = no citations on this post.
   sources?: Source[] | null;
+  // Rejected sources from the last citation run — kept around so the
+  // Sources admin page can show them with their rejection reason and
+  // the admin can manually approve borderline cases.
+  rejected_sources?: RejectedSource[] | null;
 };
 
 export type Draft = {
@@ -54,6 +58,7 @@ export type Draft = {
   author_id?: string | null;
   editor_credit?: string | null;
   sources?: Source[] | null;
+  rejected_sources?: RejectedSource[] | null;
 };
 
 /**
@@ -69,6 +74,20 @@ export type Source = {
   publication: string | null;
   quote: string | null;
   accessed_at: string; // ISO
+};
+
+/**
+ * A source Claude proposed but verification rejected. Stored on the
+ * post for review on /admin/sources so admins can manually approve
+ * borderline cases. No `n` because it's not anchored to anything until
+ * approved.
+ */
+export type RejectedSource = {
+  title: string;
+  url: string;
+  publication: string | null;
+  quote: string | null;
+  reason: string; // why it failed verification, e.g. "HTTP 404"
 };
 
 export type Author = {

@@ -88,12 +88,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Persist to DB. Even when verified === 0 we set sources = [] (not null)
   // so the next run knows we tried and can skip without re-spending API
   // dollars. Force run can still overwrite.
-  console.log(`[citations] Writing to DB: post=${typedPost.id}, sources=${result.sources.length}, contentChanged=${result.updatedContent !== typedPost.content}`);
+  console.log(`[citations] Writing to DB: post=${typedPost.id}, sources=${result.sources.length}, rejected=${result.rejectedSources.length}, contentChanged=${result.updatedContent !== typedPost.content}`);
   const { error: updateErr } = await supabaseAdmin
     .from('posts')
     .update({
       content: result.updatedContent,
       sources: result.sources,
+      rejected_sources: result.rejectedSources,
     })
     .eq('id', typedPost.id);
 
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     elapsedMs,
     stats: result.stats,
     sources: result.sources,
+    rejectedSources: result.rejectedSources,
     contentChanged: result.updatedContent !== typedPost.content,
     contentLength: result.updatedContent.length,
   });

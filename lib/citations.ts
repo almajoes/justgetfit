@@ -1,6 +1,6 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
-import type { Post, Source } from '@/lib/supabase';
+import type { Post, Source, RejectedSource } from '@/lib/supabase';
 
 /**
  * Citation generation for existing articles.
@@ -204,6 +204,7 @@ export type AddCitationsResult =
       ok: true;
       updatedContent: string;
       sources: Source[];
+      rejectedSources: RejectedSource[];
       stats: {
         proposed: number; // how many sources Claude proposed
         verified: number; // how many passed verification
@@ -304,6 +305,7 @@ Search the web for sources, then call the submit_citations tool with the result.
       ok: true,
       updatedContent: post.content, // explicitly leave unchanged
       sources: [],
+      rejectedSources: [],
       stats: { proposed: 0, verified: 0, rejected: 0 },
     };
   }
@@ -317,6 +319,7 @@ Search the web for sources, then call the submit_citations tool with the result.
     parsed.sources.map((s) => verifySource(s))
   );
   const verifiedSources: Source[] = [];
+  const rejectedSources: RejectedSource[] = []; // for admin review
   const droppedNumbers: number[] = []; // [N] markers we'll need to remove from body
 
   const accessedAt = new Date().toISOString();
@@ -335,16 +338,28 @@ Search the web for sources, then call the submit_citations tool with the result.
     } else {
       console.warn(`[addCitations] Source rejected: ${proposed.url} — ${result.reason}`);
       droppedNumbers.push(proposed.n);
+      // Keep the rejected source for admin review on /admin/sources.
+      // Reason text is what verifySource() returned — admin can read it
+      // and decide whether to manually approve.
+      rejectedSources.push({
+        title: proposed.title,
+        url: proposed.url,
+        publication: proposed.publication ?? null,
+        quote: proposed.quote ?? null,
+        reason: result.reason,
+      });
     }
   }
 
   if (verifiedSources.length === 0) {
     // Every proposed source failed verification. Don't store partial
-    // body changes — just signal "no citations" outcome.
+    // body changes — just signal "no citations" outcome. We DO still
+    // return the rejected list so the admin can see what got tried.
     return {
       ok: true,
       updatedContent: post.content,
       sources: [],
+      rejectedSources,
       stats: { proposed, verified: 0, rejected: proposed },
     };
   }
@@ -363,6 +378,7 @@ Search the web for sources, then call the submit_citations tool with the result.
     ok: true,
     updatedContent: renumberedContent,
     sources: renumberedSources,
+    rejectedSources,
     stats: {
       proposed,
       verified: renumberedSources.length,

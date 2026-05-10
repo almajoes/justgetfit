@@ -2,31 +2,34 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import type { Post, Source } from '@/lib/supabase';
+import type { Post, Source, RejectedSource } from '@/lib/supabase';
 
 /**
  * <SourcesClient />
  *
- * Three tabs:
+ * Four tabs:
  *   - By article: posts with citations, expand to see their sources
  *   - By source URL: every unique URL grouped, shows which posts cite it
  *   - Uncited: posts that haven't run citations yet (sources=null) or
  *     ran and got nothing (sources=[])
+ *   - Rejected: sources Claude proposed that failed verification, shown
+ *     with reason. Admin can approve (move to sources, no inline marker)
+ *     or discard.
  *
  * Plus a "Check links" action that re-verifies every URL by hitting the
  * server endpoint /api/admin/sources/check-links. The endpoint returns
  * a status per URL (200, 404, etc.) and we visualize the result inline.
  */
 
-type PostRow = Pick<Post, 'id' | 'slug' | 'title' | 'category' | 'published_at' | 'sources'>;
+type PostRow = Pick<Post, 'id' | 'slug' | 'title' | 'category' | 'published_at' | 'sources' | 'rejected_sources'>;
 
-type Tab = 'by-article' | 'by-source' | 'uncited';
+type Tab = 'by-article' | 'by-source' | 'uncited' | 'rejected';
 
 type LinkCheck = { url: string; ok: boolean; status: number | null; reason: string | null };
 type LinkCheckMap = Map<string, LinkCheck>;
 
 export function SourcesClient({
-  posts,
+  posts: initialPosts,
   stats,
 }: {
   posts: PostRow[];
@@ -36,14 +39,22 @@ export function SourcesClient({
     ranButEmpty: number;
     neverRun: number;
     totalSources: number;
+    totalRejected: number;
   };
 }) {
+  // We hold posts in local state so approve/discard can mutate the
+  // rejected list without a full page round-trip. After mutations we
+  // also call router.refresh() to re-pull canonical state.
+  const [posts, setPosts] = useState(initialPosts);
   const [tab, setTab] = useState<Tab>('by-article');
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [linkChecks, setLinkChecks] = useState<LinkCheckMap>(new Map());
   const [checking, setChecking] = useState(false);
   const [checkProgress, setCheckProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
+  // Track which (postId, url) pair is currently being approved/discarded
+  // so we can disable buttons while a request is in flight.
+  const [actingOn, setActingOn] = useState<string | null>(null);
 
   // ── Derived data ──
   // postsWithCitations: just posts that have at least one source.
@@ -87,6 +98,92 @@ export function SourcesClient({
       }
     });
   }, [postsWithCitations]);
+
+  // postsWithRejected: posts that have at least one rejected source.
+  const postsWithRejected = useMemo(
+    () => posts.filter((p) => Array.isArray(p.rejected_sources) && p.rejected_sources.length > 0),
+    [posts]
+  );
+
+  // ── Approve / discard handlers for rejected sources ──
+  // Both endpoints take {url} and the postId in the path. After success
+  // we update local state immediately for snappy UX; router.refresh()
+  // would trigger a full server re-fetch but that's slow.
+  async function approveRejected(postId: string, url: string) {
+    const key = `${postId}|${url}`;
+    setActingOn(key);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/posts/${postId}/sources/approve-rejected`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      // Optimistic local update: move the rejected entry from
+      // rejected_sources into sources on the matching post.
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id !== postId) return p;
+          const rejected = (p.rejected_sources ?? []) as RejectedSource[];
+          const sources = (p.sources ?? []) as Source[];
+          const idx = rejected.findIndex((r) => r.url === url);
+          if (idx < 0) return p;
+          const moved = rejected[idx];
+          const nextN = sources.reduce((max, s) => Math.max(max, s.n), 0) + 1;
+          return {
+            ...p,
+            sources: [
+              ...sources,
+              {
+                n: nextN,
+                title: moved.title,
+                url: moved.url,
+                publication: moved.publication,
+                quote: moved.quote,
+                accessed_at: new Date().toISOString(),
+              },
+            ],
+            rejected_sources: rejected.filter((_, i) => i !== idx),
+          };
+        })
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Approve failed');
+    } finally {
+      setActingOn(null);
+    }
+  }
+
+  async function discardRejected(postId: string, url: string) {
+    const key = `${postId}|${url}`;
+    setActingOn(key);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/posts/${postId}/sources/discard-rejected`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id !== postId) return p;
+          const rejected = (p.rejected_sources ?? []) as RejectedSource[];
+          return {
+            ...p,
+            rejected_sources: rejected.filter((r) => r.url !== url),
+          };
+        })
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Discard failed');
+    } finally {
+      setActingOn(null);
+    }
+  }
 
   // ── Check all links ──
   // Calls our server endpoint with a list of URLs, gets back status per
@@ -150,6 +247,7 @@ export function SourcesClient({
         <Stat label="Ran, no sources" value={stats.ranButEmpty} />
         <Stat label="Never run" value={stats.neverRun} />
         <Stat label="Total sources" value={stats.totalSources} accent />
+        <Stat label="Rejected" value={stats.totalRejected} />
       </div>
 
       {error && (
@@ -187,6 +285,9 @@ export function SourcesClient({
         <TabButton active={tab === 'uncited'} onClick={() => setTab('uncited')}>
           Uncited ({uncitedPosts.neverRun.length + uncitedPosts.empty.length})
         </TabButton>
+        <TabButton active={tab === 'rejected'} onClick={() => setTab('rejected')}>
+          Rejected ({stats.totalRejected})
+        </TabButton>
         <div style={{ flex: 1 }} />
         <button
           onClick={checkAllLinks}
@@ -210,6 +311,14 @@ export function SourcesClient({
       )}
       {tab === 'by-source' && <BySourceView groups={bySource} linkChecks={linkChecks} />}
       {tab === 'uncited' && <UncitedView posts={uncitedPosts} />}
+      {tab === 'rejected' && (
+        <RejectedView
+          postsWithRejected={postsWithRejected}
+          onApprove={approveRejected}
+          onDiscard={discardRejected}
+          actingOn={actingOn}
+        />
+      )}
     </div>
   );
 }
@@ -556,6 +665,152 @@ function CheckBadge({ check }: { check: LinkCheck | undefined }) {
     >
       {check.status ? `Broken ${check.status}` : 'Broken'}
     </span>
+  );
+}
+
+function RejectedView({
+  postsWithRejected,
+  onApprove,
+  onDiscard,
+  actingOn,
+}: {
+  postsWithRejected: PostRow[];
+  onApprove: (postId: string, url: string) => void;
+  onDiscard: (postId: string, url: string) => void;
+  actingOn: string | null;
+}) {
+  if (postsWithRejected.length === 0) {
+    return <Empty>No rejected sources to review.</Empty>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <p style={{ fontSize: 13, color: 'var(--text-3)', margin: 0, lineHeight: 1.55 }}>
+        Sources Claude proposed during citation runs that failed verification. Each shows the
+        rejection reason. <strong style={{ color: 'var(--text-2)' }}>Approve</strong> moves it
+        into the Sources list as a &ldquo;further reading&rdquo; entry (no inline [N] marker is
+        added — you can manually add one in the post body if you want it anchored to a specific
+        claim). <strong style={{ color: 'var(--text-2)' }}>Discard</strong> removes it from the
+        review list permanently.
+      </p>
+      {postsWithRejected.map((post) => {
+        const rejected = (post.rejected_sources ?? []) as RejectedSource[];
+        return (
+          <div
+            key={post.id}
+            style={{
+              background: 'var(--bg-1)',
+              border: '1px solid var(--line)',
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+              <Link
+                href={`/admin/posts/${post.id}`}
+                style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}
+              >
+                {post.title}
+              </Link>
+              <span style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {rejected.length} rejected
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {rejected.map((r) => {
+                const key = `${post.id}|${r.url}`;
+                const busy = actingOn === key;
+                return (
+                  <div
+                    key={r.url}
+                    style={{
+                      padding: 12,
+                      background: 'var(--bg-2)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 8,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div>
+                      <a
+                        href={r.url}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                        style={{
+                          color: 'var(--text)',
+                          textDecoration: 'underline',
+                          textDecorationColor: 'rgba(196,255,61,0.4)',
+                          textUnderlineOffset: 3,
+                          fontWeight: 500,
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {r.title}
+                      </a>
+                      {r.publication && (
+                        <span style={{ color: 'var(--text-3)', marginLeft: 8, fontSize: 13 }}>
+                          — {r.publication}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', wordBreak: 'break-all', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+                      {r.url}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: '#ffb088',
+                        padding: '6px 10px',
+                        background: 'rgba(255,140,80,0.08)',
+                        borderRadius: 4,
+                        borderLeft: '2px solid #ffb088',
+                      }}
+                    >
+                      <strong>Rejected:</strong> {r.reason}
+                    </div>
+                    {r.quote && (
+                      <blockquote
+                        style={{
+                          margin: 0,
+                          padding: '4px 10px',
+                          borderLeft: '2px solid rgba(196,255,61,0.4)',
+                          fontStyle: 'italic',
+                          fontSize: 12,
+                          color: 'var(--text-2)',
+                        }}
+                      >
+                        &ldquo;{r.quote}&rdquo;
+                      </blockquote>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => onApprove(post.id, r.url)}
+                        disabled={busy}
+                        className="btn btn-ghost"
+                        style={{ padding: '6px 12px', fontSize: 12, color: 'var(--neon)' }}
+                      >
+                        {busy ? 'Working…' : 'Approve anyway'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDiscard(post.id, r.url)}
+                        disabled={busy}
+                        className="btn btn-ghost"
+                        style={{ padding: '6px 12px', fontSize: 12, color: 'var(--text-3)' }}
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
