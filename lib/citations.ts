@@ -143,6 +143,10 @@ export type AddCitationsResult =
   | { ok: false; error: string };
 
 export async function addCitationsToPost(post: Pick<Post, 'id' | 'title' | 'category' | 'content'>): Promise<AddCitationsResult> {
+  const tStart = Date.now();
+  const log = (msg: string) => console.log(`[addCitations ${post.id?.slice(0, 8) ?? '?'}] +${Date.now() - tStart}ms ${msg}`);
+  log(`starting (content length=${post.content.length})`);
+
   const userPrompt = `ARTICLE TITLE: ${post.title}
 CATEGORY: ${post.category ?? 'general'}
 
@@ -153,6 +157,7 @@ Add citations now. Use web_search to find real sources. Return the JSON response
 
   let response: Anthropic.Message;
   try {
+    log('calling Anthropic API with web_search tool');
     response = await client.messages.create({
       model: MODEL,
       max_tokens: 8192, // big enough to fit a 1200-word article + sources JSON
@@ -166,9 +171,10 @@ Add citations now. Use web_search to find real sources. Return the JSON response
         } as unknown as Anthropic.Tool, // SDK type doesn't yet include the server-tool variant
       ],
     });
+    log(`API call returned (stop_reason=${response.stop_reason}, ${response.content.length} content blocks)`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Anthropic API call failed';
-    console.error('[addCitations] API call failed:', msg);
+    console.error(`[addCitations ${post.id?.slice(0, 8)}] API call failed:`, msg);
     return { ok: false, error: msg };
   }
 
@@ -176,10 +182,13 @@ Add citations now. Use web_search to find real sources. Return the JSON response
   // text blocks interleaved. We want the FINAL text block which carries
   // the JSON answer after web search rounds completed.
   const textBlocks = response.content.filter((b) => b.type === 'text');
+  log(`extracted ${textBlocks.length} text blocks (total content blocks: ${response.content.length})`);
   const finalText = textBlocks[textBlocks.length - 1];
   if (!finalText || finalText.type !== 'text') {
+    log('NO TEXT CONTENT — content block types: ' + response.content.map((b) => b.type).join(','));
     return { ok: false, error: 'No text content in Anthropic response (only tool calls?)' };
   }
+  log(`final text block length: ${finalText.text.length}`);
 
   // Strip markdown fences if present, parse JSON
   const cleaned = finalText.text
@@ -190,22 +199,26 @@ Add citations now. Use web_search to find real sources. Return the JSON response
   let parsed: CitationsResponse;
   try {
     parsed = JSON.parse(cleaned) as CitationsResponse;
+    log(`JSON parsed successfully (${parsed.sources?.length ?? '?'} sources proposed)`);
   } catch {
-    console.error('[addCitations] Failed to parse JSON. Raw text:', finalText.text.slice(0, 500));
-    return { ok: false, error: 'Model returned non-JSON output' };
+    console.error(`[addCitations ${post.id?.slice(0, 8)}] Failed to parse JSON. Raw text first 1000 chars:`, finalText.text.slice(0, 1000));
+    return { ok: false, error: `Model returned non-JSON output (first 200 chars: ${finalText.text.slice(0, 200)})` };
   }
 
   // Shape validation
   if (typeof parsed.updated_content !== 'string') {
+    log('updated_content missing or wrong type');
     return { ok: false, error: 'Response missing updated_content' };
   }
   if (!Array.isArray(parsed.sources)) {
+    log('sources missing or wrong type');
     return { ok: false, error: 'Response missing sources array' };
   }
 
   // Empty sources is a valid "I couldn't find good citations" outcome.
   // Return the original content unchanged.
   if (parsed.sources.length === 0) {
+    log('Claude returned 0 sources — returning original content unchanged');
     return {
       ok: true,
       updatedContent: post.content, // explicitly leave unchanged
@@ -215,6 +228,7 @@ Add citations now. Use web_search to find real sources. Return the JSON response
   }
 
   const proposed = parsed.sources.length;
+  log(`verifying ${proposed} proposed sources`);
 
   // Per-source verification: HTTP 200 + title roughly matches what
   // Claude claimed. Run in parallel since they're independent fetches.

@@ -79,7 +79,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
 
   const elapsedMs = Date.now() - t0;
-  console.log(`[citations] Finished in ${elapsedMs}ms`);
+  console.log(`[citations] Pipeline finished in ${elapsedMs}ms — ok=${result.ok}, ${result.ok ? `verified=${result.stats.verified}/${result.stats.proposed}` : `error=${result.error}`}`);
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error, elapsedMs }, { status: 500 });
@@ -88,6 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Persist to DB. Even when verified === 0 we set sources = [] (not null)
   // so the next run knows we tried and can skip without re-spending API
   // dollars. Force run can still overwrite.
+  console.log(`[citations] Writing to DB: post=${typedPost.id}, sources=${result.sources.length}, contentChanged=${result.updatedContent !== typedPost.content}`);
   const { error: updateErr } = await supabaseAdmin
     .from('posts')
     .update({
@@ -97,8 +98,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .eq('id', typedPost.id);
 
   if (updateErr) {
+    console.error(`[citations] DB update failed: ${updateErr.message}`);
     return NextResponse.json({ error: `DB update failed: ${updateErr.message}`, stats: result.stats }, { status: 500 });
   }
+  console.log(`[citations] DB write successful for post ${typedPost.id}`);
 
   return NextResponse.json({
     ok: true,

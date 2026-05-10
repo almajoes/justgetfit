@@ -53,7 +53,13 @@ export function PostEditor({
   // updates after a successful citation run without requiring a full
   // page refresh. Initialized from the post row.
   const [sources, setSources] = useState(post.sources ?? null);
-  const [citationsMessage, setCitationsMessage] = useState<string | null>(null);
+  // Structured status: kind tells us how to color it (success/info/error),
+  // message is the human-readable line, debug is anything we want to
+  // expose in a "show details" expander for debugging silent failures.
+  const [citationsStatus, setCitationsStatus] = useState<
+    | { kind: 'success' | 'info' | 'error'; message: string; debug?: string }
+    | null
+  >(null);
 
   const [title, setTitle] = useState(post.title);
   const [slug, setSlug] = useState(post.slug);
@@ -153,38 +159,90 @@ export function PostEditor({
 
     setBusy('citations');
     setError(null);
-    setCitationsMessage(null);
+    setCitationsStatus(null);
+    const startedAt = Date.now();
     try {
       const url = hasExisting
         ? `/api/admin/posts/${post.id}/citations?force=1`
         : `/api/admin/posts/${post.id}/citations`;
       const res = await fetch(url, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
-      // Possible outcomes:
-      //   skipped: post already had sources and we didn't pass force
-      //     (shouldn't hit since we always pass force when overwriting)
-      //   ok with verified=0: ran successfully but found no usable sources
-      //   ok with verified>0: success
+      // Read the response body regardless of status so we can surface
+      // useful info even on errors (Vercel timeout HTML, malformed JSON,
+      // server error message, etc.)
+      const rawText = await res.text();
+      const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+
+      let data: {
+        ok?: boolean;
+        skipped?: boolean;
+        reason?: string;
+        elapsedMs?: number;
+        stats?: { proposed: number; verified: number; rejected: number };
+        sources?: typeof sources;
+        contentChanged?: boolean;
+        error?: string;
+      } = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        // Response wasn't JSON — likely a Vercel error page (timeout
+        // produces a 504 HTML page, for example). Surface the first
+        // chunk of the response body so the admin can see what came back.
+        const preview = rawText.slice(0, 500).replace(/\s+/g, ' ').trim();
+        setCitationsStatus({
+          kind: 'error',
+          message: `Server returned non-JSON response (HTTP ${res.status}, ${elapsedSec}s elapsed). The function may have timed out or crashed.`,
+          debug: preview || '(empty body)',
+        });
+        return;
+      }
+
+      if (!res.ok) {
+        setCitationsStatus({
+          kind: 'error',
+          message: data.error
+            ? `${data.error} (HTTP ${res.status}, ${elapsedSec}s)`
+            : `Request failed: HTTP ${res.status} after ${elapsedSec}s`,
+          debug: rawText.slice(0, 1000),
+        });
+        return;
+      }
+
+      // Possible success outcomes:
       if (data.skipped) {
-        setCitationsMessage(`Skipped: ${data.reason}`);
+        setCitationsStatus({
+          kind: 'info',
+          message: `Skipped: ${data.reason}`,
+        });
       } else if (data.stats?.verified === 0) {
-        setCitationsMessage(
-          `Ran in ${(data.elapsedMs / 1000).toFixed(1)}s. No usable sources found (proposed ${data.stats.proposed}, all rejected by URL/title verification). Article unchanged.`
-        );
+        setCitationsStatus({
+          kind: 'info',
+          message: `Ran in ${(data.elapsedMs! / 1000).toFixed(1)}s. No usable sources found (proposed ${data.stats.proposed}, all rejected by URL/title verification). Article unchanged.`,
+        });
         setSources([]);
       } else {
-        setCitationsMessage(
-          `Added ${data.stats.verified} citations in ${(data.elapsedMs / 1000).toFixed(1)}s (proposed ${data.stats.proposed}, ${data.stats.rejected} rejected by verification).`
-        );
-        setSources(data.sources);
+        setCitationsStatus({
+          kind: 'success',
+          message: `Added ${data.stats!.verified} citations in ${(data.elapsedMs! / 1000).toFixed(1)}s (proposed ${data.stats!.proposed}, ${data.stats!.rejected} rejected by verification).`,
+        });
+        setSources(data.sources ?? []);
         // Refresh from server so the content textarea reflects the new
         // body with [N] markers inserted.
         router.refresh();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Citations failed');
+      // Network-level error, fetch failed entirely (CORS, network drop,
+      // etc.) — surface what we can.
+      const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+      console.error('[runCitations] failed:', err);
+      setCitationsStatus({
+        kind: 'error',
+        message:
+          err instanceof Error
+            ? `Network error after ${elapsedSec}s: ${err.message}`
+            : `Unknown error after ${elapsedSec}s`,
+      });
     } finally {
       setBusy(null);
     }
@@ -386,20 +444,56 @@ export function PostEditor({
             <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, margin: 0 }}>
               Adds inline [N] markers to the body and a verified Sources list. Uses Claude + web search; takes 30-90s and costs ~$0.20-0.30 per article.
             </p>
-            {citationsMessage && (
-              <p
+            {citationsStatus && (
+              <div
                 style={{
                   fontSize: 12,
                   color: 'var(--text-2)',
                   marginTop: 8,
                   padding: '8px 10px',
-                  background: 'rgba(196,255,61,0.06)',
+                  background:
+                    citationsStatus.kind === 'success'
+                      ? 'rgba(196,255,61,0.06)'
+                      : citationsStatus.kind === 'error'
+                      ? 'rgba(255,107,107,0.08)'
+                      : 'rgba(255,255,255,0.03)',
                   borderRadius: 6,
-                  borderLeft: '2px solid var(--neon)',
+                  borderLeft:
+                    citationsStatus.kind === 'success'
+                      ? '2px solid var(--neon)'
+                      : citationsStatus.kind === 'error'
+                      ? '2px solid #ff6b6b'
+                      : '2px solid var(--text-3)',
                 }}
               >
-                {citationsMessage}
-              </p>
+                <div style={{ color: citationsStatus.kind === 'error' ? '#ff9c9c' : 'var(--text-2)' }}>
+                  {citationsStatus.message}
+                </div>
+                {citationsStatus.debug && (
+                  <details style={{ marginTop: 6 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 11, color: 'var(--text-3)', userSelect: 'none' }}>
+                      Show response details
+                    </summary>
+                    <pre
+                      style={{
+                        marginTop: 6,
+                        padding: 8,
+                        background: 'rgba(0,0,0,0.3)',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        color: 'var(--text-3)',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        maxHeight: 200,
+                        overflow: 'auto',
+                        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                      }}
+                    >
+                      {citationsStatus.debug}
+                    </pre>
+                  </details>
+                )}
+              </div>
             )}
           </div>
           <button
