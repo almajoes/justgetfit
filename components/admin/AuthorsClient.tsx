@@ -63,6 +63,72 @@ export function AuthorsClient({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Drag-to-reorder state. Native HTML5 D&D — no library dependency.
+  // dragId: the author id currently being dragged (null when no drag).
+  // dropTargetId: the id of the row being hovered as a drop target —
+  // used to render a visual highlight on the would-be destination.
+  // We use HTML5 dataTransfer to carry the id across native events
+  // because React state updates during dragstart can race with the drop.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  /**
+   * Persist a new author order to the server. Called after a drop
+   * computes the reordered local state. On error we revert local state
+   * to whatever the server returns on next refresh.
+   */
+  async function persistOrder(orderedIds: string[]) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/authors/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: orderedIds }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reorder failed');
+      // Bounce local state back by triggering a re-fetch via router.
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Handle a successful drop. Reorders the local authors array — moves
+   * the dragged author to immediately before the drop target — then
+   * persists to the server. If draggedId === targetId or either is
+   * missing we no-op.
+   */
+  function handleDrop(targetId: string) {
+    if (!dragId || dragId === targetId) {
+      setDragId(null);
+      setDropTargetId(null);
+      return;
+    }
+    const fromIdx = authors.findIndex((a) => a.id === dragId);
+    const toIdx = authors.findIndex((a) => a.id === targetId);
+    if (fromIdx < 0 || toIdx < 0) {
+      setDragId(null);
+      setDropTargetId(null);
+      return;
+    }
+    const next = [...authors];
+    const [moved] = next.splice(fromIdx, 1);
+    // Drop before target — but if we removed an item BEFORE the target,
+    // the target's index shifted down by 1.
+    const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
+    next.splice(insertAt, 0, moved);
+    setAuthors(next);
+    setDragId(null);
+    setDropTargetId(null);
+    void persistOrder(next.map((a) => a.id));
+  }
+
   const activeCount = authors.filter((a) => a.is_active).length;
   const upcomingIdx = activeCount > 0 ? rotationNext % activeCount : 0;
 
@@ -150,7 +216,7 @@ export function AuthorsClient({
         <div>
           <h1 style={{ fontSize: 32, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.02em' }}>Authors</h1>
           <p style={{ color: 'var(--text-2)', margin: 0 }}>
-            Round-robin byline pool. New articles cycle through active authors in <code style={inlineCode}>sort_order</code>.
+            The byline pool. Drag rows by the handle (<code style={inlineCode}>⋮⋮</code>) on the left to reorder — the order here is the order they appear on <code style={inlineCode}>/authors</code>.
           </p>
         </div>
         <button
@@ -251,6 +317,20 @@ export function AuthorsClient({
               onEdit={() => startEdit(a)}
               onDelete={() => deleteAuthor(a.id, a.name)}
               disabled={busy}
+              isDragging={dragId === a.id}
+              isDropTarget={dropTargetId === a.id && dragId !== a.id}
+              onDragStart={() => setDragId(a.id)}
+              onDragEnd={() => {
+                setDragId(null);
+                setDropTargetId(null);
+              }}
+              onDragOver={() => {
+                if (dragId && dragId !== a.id) setDropTargetId(a.id);
+              }}
+              onDragLeave={() => {
+                if (dropTargetId === a.id) setDropTargetId(null);
+              }}
+              onDrop={() => handleDrop(a.id)}
             />
           )
         )}
@@ -276,25 +356,95 @@ function RowCard({
   onEdit,
   onDelete,
   disabled,
+  isDragging,
+  isDropTarget,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: {
   author: Author;
   onEdit: () => void;
   onDelete: () => void;
   disabled: boolean;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
 }) {
   return (
     <div
+      // The whole card is the drop zone. We must call preventDefault on
+      // dragover for drop to fire (HTML5 D&D quirk).
+      onDragOver={(e) => {
+        e.preventDefault();
+        onDragOver();
+      }}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop();
+      }}
       style={{
         background: 'var(--bg-1)',
-        border: '1px solid var(--line)',
+        // Border indicates state: neon when this row is the drop target,
+        // dimmed when this row IS the one being dragged, default
+        // otherwise.
+        border: isDropTarget
+          ? '1px solid var(--neon)'
+          : isDragging
+          ? '1px dashed var(--text-3)'
+          : '1px solid var(--line)',
         borderRadius: 12,
         padding: 16,
         display: 'flex',
         alignItems: 'center',
         gap: 14,
-        opacity: author.is_active ? 1 : 0.55,
+        opacity: isDragging ? 0.4 : author.is_active ? 1 : 0.55,
+        transition: 'border-color 0.12s, opacity 0.12s',
       }}
     >
+      {/* Drag handle. Only this element is draggable — clicks elsewhere
+          on the card don't initiate a drag (so the Edit/Delete buttons
+          still work as expected). The grip icon is rendered as text
+          characters since we don't have an icon library. */}
+      <div
+        draggable
+        onDragStart={(e) => {
+          // Add the author id to dataTransfer so the drop handler can
+          // identify the source even if React state lags. Required for
+          // some browsers (Firefox) which won't fire `drop` without
+          // dataTransfer being set.
+          e.dataTransfer.setData('text/plain', author.id);
+          e.dataTransfer.effectAllowed = 'move';
+          onDragStart();
+        }}
+        onDragEnd={onDragEnd}
+        title="Drag to reorder"
+        aria-label={`Drag handle for ${author.name}`}
+        style={{
+          flexShrink: 0,
+          width: 18,
+          height: 32,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--text-3)',
+          fontSize: 14,
+          cursor: 'grab',
+          userSelect: 'none',
+          fontFamily: 'system-ui, sans-serif',
+          fontWeight: 700,
+          letterSpacing: '-2px',
+        }}
+      >
+        ⋮⋮
+      </div>
+
       {author.photo_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
