@@ -29,6 +29,9 @@ export type Post = {
   // that pre-date the migration; new rows always carry both.
   author_id?: string | null;
   editor_credit?: string | null;
+  // Citations (May 2026): array of source entries that the inline [N]
+  // markers in `content` reference. Null = no citations on this post.
+  sources?: Source[] | null;
 };
 
 export type Draft = {
@@ -50,6 +53,22 @@ export type Draft = {
   // so the assignment survives the draft → publish copy step.
   author_id?: string | null;
   editor_credit?: string | null;
+  sources?: Source[] | null;
+};
+
+/**
+ * A single citation. The body of a post carries inline `[N]` markers
+ * where N matches the `n` field here. Quote is null for source-only
+ * citations, populated for direct-quote ones — the prompt to Claude
+ * asks for whichever fits the claim better.
+ */
+export type Source = {
+  n: number;
+  title: string;
+  url: string;
+  publication: string | null;
+  quote: string | null;
+  accessed_at: string; // ISO
 };
 
 export type Author = {
