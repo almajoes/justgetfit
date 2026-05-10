@@ -29,6 +29,7 @@ const SECTIONS: { heading: string; links: { href: string; label: string; icon: s
     links: [
       { href: '/admin/drafts', label: 'Drafts', icon: '📝', countKey: 'drafts' },
       { href: '/admin/posts', label: 'Posts', icon: '📰' },
+      { href: '/admin/sources', label: 'Sources', icon: '🔗' },
       { href: '/admin/authors', label: 'Authors', icon: '✍️' },
       { href: '/admin/topics', label: 'Topic queue', icon: '💡', countKey: 'topics' },
       { href: '/admin/generate', label: 'Generate articles', icon: '✨' },

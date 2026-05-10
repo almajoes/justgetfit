@@ -41,6 +41,7 @@ const MORE_SECTIONS: { heading: string; links: { href: string; label: string; ic
     heading: 'Content',
     links: [
       { href: '/admin/authors', label: 'Authors', icon: '✍️' },
+      { href: '/admin/sources', label: 'Sources', icon: '🔗' },
       { href: '/admin/topics', label: 'Topic queue', icon: '💡', countKey: 'topics' },
       { href: '/admin/generate', label: 'Generate articles', icon: '✨' },
     ],
