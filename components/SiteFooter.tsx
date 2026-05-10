@@ -54,6 +54,8 @@ export async function SiteFooter() {
             <Link href="/privacy" style={{ color: 'inherit' }}>Privacy Policy</Link>
             <span aria-hidden style={{ opacity: 0.4 }}>·</span>
             <Link href="/terms" style={{ color: 'inherit' }}>Terms of Service</Link>
+            <span aria-hidden style={{ opacity: 0.4 }}>·</span>
+            <Link href="/bibliography" style={{ color: 'inherit' }}>Bibliography</Link>
           </span>
           <span>{footer.version_label}</span>
         </div>
