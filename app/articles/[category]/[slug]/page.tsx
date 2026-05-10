@@ -9,6 +9,7 @@ import { SiteFooter } from '@/components/SiteFooter';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { AppCTA } from '@/components/AppCTA';
 import { ArticleByline } from '@/components/ArticleByline';
+import { ArticleAuthorCard } from '@/components/ArticleAuthorCard';
 import { getCategories, getAppPage } from '@/lib/cms';
 import { getAuthorById } from '@/lib/authors';
 import { preprocessMarkdown } from '@/lib/markdown';
@@ -162,7 +163,7 @@ export default async function ArticlePage({ params }: { params: { category: stri
     ? {
         '@type': 'Person',
         name: author.name,
-        url: `${SITE_URL}/articles?author=${author.slug}`,
+        url: `${SITE_URL}/authors/${author.slug}`,
       }
     : {
         '@type': 'Organization',
@@ -293,6 +294,11 @@ export default async function ArticlePage({ params }: { params: { category: stri
             <div className="about-body" style={{ fontSize: 17, lineHeight: 1.75 }}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessMarkdown(post.content)}</ReactMarkdown>
             </div>
+
+            {/* "About the author" card. Hidden when the post has no
+                author (legacy rows). The shorter byline at the top of
+                the article still anchors the byline above the lede. */}
+            <ArticleAuthorCard author={author} />
 
             {/* End-of-article CTA — promotes the Just Get Fit app to readers
                 who finished the article (warm leads, peak intent moment).
