@@ -113,78 +113,87 @@ function AuthorCard({ author, postCount }: { author: Author; postCount: number }
       href={`/authors/${author.slug}`}
       style={{
         display: 'flex',
-        gap: 14,
-        padding: 18,
+        flexDirection: 'column',
         background: 'var(--bg-1)',
         border: '1px solid var(--line)',
         borderRadius: 14,
         textDecoration: 'none',
         color: 'inherit',
+        overflow: 'hidden', // clips the photo to the rounded corners
         transition: 'border-color 0.15s, transform 0.15s',
       }}
     >
+      {/* Photo block. Square (1:1) so the existing 400×400 uploads
+          render edge-to-edge without cropping. The wrapper is the
+          1:1-aspect frame; the actual <Image> fills it via absolute
+          positioning + object-fit: cover so even slightly off-square
+          uploads still look right. */}
       {author.photo_url ? (
-        <Image
-          src={author.photo_url}
-          alt={author.name}
-          width={64}
-          height={64}
+        <div
           style={{
-            width: 64,
-            height: 64,
-            borderRadius: '50%',
-            objectFit: 'cover',
-            flexShrink: 0,
-            border: '1px solid var(--line)',
+            position: 'relative',
+            width: '100%',
+            aspectRatio: '1 / 1',
+            background: 'var(--bg-2)',
           }}
-          unoptimized
-        />
+        >
+          <Image
+            src={author.photo_url}
+            alt={author.name}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1080px) 50vw, 33vw"
+            style={{ objectFit: 'cover' }}
+            unoptimized
+          />
+        </div>
       ) : (
-        <span
+        // Initial-monogram fallback — also square so all cards in the
+        // grid keep the same height regardless of photo presence.
+        <div
           aria-hidden
           style={{
-            display: 'inline-flex',
+            width: '100%',
+            aspectRatio: '1 / 1',
+            display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 64,
-            height: 64,
-            borderRadius: '50%',
-            background: 'rgba(196,255,61,0.12)',
+            background: 'rgba(196,255,61,0.06)',
             color: 'var(--neon)',
             fontWeight: 700,
-            fontSize: 18,
-            flexShrink: 0,
-            border: '1px solid rgba(196,255,61,0.25)',
+            fontSize: 56,
+            letterSpacing: '0.04em',
           }}
         >
           {initials || '·'}
-        </span>
+        </div>
       )}
 
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* Text block: name + post count + bio. Padding only here so the
+          photo sits flush to the card edges. */}
+      <div style={{ padding: 18, flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div
           style={{
             display: 'flex',
             alignItems: 'baseline',
             gap: 10,
             flexWrap: 'wrap',
+            marginBottom: author.bio ? 8 : 0,
           }}
         >
-          <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.005em' }}>
+          <span style={{ fontSize: 19, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>
             {author.name}
           </span>
-          <span style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
             {postCount} {postCount === 1 ? 'article' : 'articles'}
           </span>
         </div>
         {author.bio && (
           <p
             style={{
-              fontSize: 13.5,
+              fontSize: 14,
               color: 'var(--text-2)',
-              lineHeight: 1.5,
-              marginTop: 6,
-              marginBottom: 0,
+              lineHeight: 1.55,
+              margin: 0,
             }}
           >
             {author.bio}
