@@ -45,9 +45,15 @@ export function PostEditor({
   authors: Author[];
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<null | 'save' | 'delete'>(null);
+  const [busy, setBusy] = useState<null | 'save' | 'delete' | 'citations'>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+
+  // Citations state. We track the current sources locally so the UI
+  // updates after a successful citation run without requiring a full
+  // page refresh. Initialized from the post row.
+  const [sources, setSources] = useState(post.sources ?? null);
+  const [citationsMessage, setCitationsMessage] = useState<string | null>(null);
 
   const [title, setTitle] = useState(post.title);
   const [slug, setSlug] = useState(post.slug);
@@ -113,6 +119,73 @@ export function PostEditor({
       router.push('/admin/posts');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed');
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Add citations to this post. Calls /api/admin/posts/[id]/citations
+   * which uses Claude + web_search to find real sources for factual
+   * claims, verifies each URL returns 200 and the page title roughly
+   * matches, then stores [N] markers in the body and the source list.
+   *
+   * If the post already has sources, the user is prompted whether to
+   * overwrite (force=1) or skip.
+   *
+   * The endpoint takes 30-90 seconds. The button shows a "Working…"
+   * state for that duration. On success, we update local state and
+   * trigger router.refresh() so the article body reloads with the new
+   * markers and the count display updates.
+   */
+  async function runCitations() {
+    const hasExisting = Array.isArray(sources) && sources.length > 0;
+    if (hasExisting) {
+      const confirmed = confirm(
+        `This post already has ${sources!.length} sources. Overwrite with a fresh citation pass? (Costs ~$0.20-0.30 in API spend.)`
+      );
+      if (!confirmed) return;
+    } else {
+      const confirmed = confirm(
+        'Run citation generation for this post? This will use Claude with web search to add inline [N] markers and a sources list. Takes 30-90 seconds and costs ~$0.20-0.30 in API spend.'
+      );
+      if (!confirmed) return;
+    }
+
+    setBusy('citations');
+    setError(null);
+    setCitationsMessage(null);
+    try {
+      const url = hasExisting
+        ? `/api/admin/posts/${post.id}/citations?force=1`
+        : `/api/admin/posts/${post.id}/citations`;
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      // Possible outcomes:
+      //   skipped: post already had sources and we didn't pass force
+      //     (shouldn't hit since we always pass force when overwriting)
+      //   ok with verified=0: ran successfully but found no usable sources
+      //   ok with verified>0: success
+      if (data.skipped) {
+        setCitationsMessage(`Skipped: ${data.reason}`);
+      } else if (data.stats?.verified === 0) {
+        setCitationsMessage(
+          `Ran in ${(data.elapsedMs / 1000).toFixed(1)}s. No usable sources found (proposed ${data.stats.proposed}, all rejected by URL/title verification). Article unchanged.`
+        );
+        setSources([]);
+      } else {
+        setCitationsMessage(
+          `Added ${data.stats.verified} citations in ${(data.elapsedMs / 1000).toFixed(1)}s (proposed ${data.stats.proposed}, ${data.stats.rejected} rejected by verification).`
+        );
+        setSources(data.sources);
+        // Refresh from server so the content textarea reflects the new
+        // body with [N] markers inserted.
+        router.refresh();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Citations failed');
+    } finally {
       setBusy(null);
     }
   }
@@ -284,6 +357,65 @@ export function PostEditor({
           buttonLabel="Send to subscribers →"
           intro="Send this article to subscribers on the fly — useful for ad-hoc requests, fulfilling one-off shares, or warm-up sends to specific groups."
         />
+      </div>
+
+      {/* Citations status — surfaces what's stored on posts.sources and
+          a single button to run / re-run the citation pipeline. Hidden
+          while editing if the user is in the middle of saving. */}
+      <div
+        className="mt-2 p-4 rounded-xl"
+        style={{
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid var(--line)',
+        }}
+      >
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="flex items-center gap-2 mb-1">
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--neon)' }}>
+                Citations
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+                {!sources
+                  ? 'Never run'
+                  : sources.length === 0
+                  ? 'Ran — no usable sources found'
+                  : `${sources.length} verified ${sources.length === 1 ? 'source' : 'sources'}`}
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, margin: 0 }}>
+              Adds inline [N] markers to the body and a verified Sources list. Uses Claude + web search; takes 30-90s and costs ~$0.20-0.30 per article.
+            </p>
+            {citationsMessage && (
+              <p
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text-2)',
+                  marginTop: 8,
+                  padding: '8px 10px',
+                  background: 'rgba(196,255,61,0.06)',
+                  borderRadius: 6,
+                  borderLeft: '2px solid var(--neon)',
+                }}
+              >
+                {citationsMessage}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={runCitations}
+            disabled={busy !== null}
+            className="btn btn-ghost"
+            style={{ flexShrink: 0 }}
+          >
+            {busy === 'citations'
+              ? 'Working… (30-90s)'
+              : sources && sources.length > 0
+              ? 'Re-run citations'
+              : 'Add citations'}
+          </button>
+        </div>
       </div>
 
       <div className="mt-2 flex flex-wrap gap-3 sticky bottom-4 p-4 rounded-xl backdrop-blur-md admin-sticky-savebar" style={{ background: 'rgba(10,10,13,0.85)', border: '1px solid var(--line-2)' }}>

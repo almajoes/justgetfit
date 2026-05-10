@@ -10,6 +10,7 @@ import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { AppCTA } from '@/components/AppCTA';
 import { ArticleByline } from '@/components/ArticleByline';
 import { ArticleAuthorCard } from '@/components/ArticleAuthorCard';
+import { ArticleSources } from '@/components/ArticleSources';
 import { getCategories, getAppPage } from '@/lib/cms';
 import { getAuthorById } from '@/lib/authors';
 import { preprocessMarkdown } from '@/lib/markdown';
@@ -294,6 +295,11 @@ export default async function ArticlePage({ params }: { params: { category: stri
             <div className="about-body" style={{ fontSize: 17, lineHeight: 1.75 }}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessMarkdown(post.content)}</ReactMarkdown>
             </div>
+
+            {/* Numbered Sources list. Renders only when post.sources is
+                non-empty (covered inside the component). The inline
+                [N] markers in the body link to #source-N anchors here. */}
+            <ArticleSources sources={post.sources} />
 
             {/* "About the author" card. Hidden when the post has no
                 author (legacy rows). The shorter byline at the top of
