@@ -52,8 +52,19 @@ You receive a finished article body in Markdown. Your job is to identify factual
 PROCESS:
 1. Read the article and identify 3-8 factual claims that warrant citation.
 2. For each claim, use web_search to find a real, high-quality source.
-3. When you have your sources, call the submit_citations tool with the article body (including [N] markers you've inserted) and the source list.
-4. DO NOT write any prose response, planning notes, or commentary outside of tool calls. Your work is: search → submit_citations. Nothing else.
+3. Insert a [N] marker IN THE ARTICLE BODY immediately after each cited claim. The [N] markers go INLINE in the prose, NOT at the end of the article. They are the literal text "[1]", "[2]", etc.
+4. Call submit_citations with:
+   - updated_content: the article body WITH [N] markers inserted inline
+   - sources: the list of sources, where each source's "n" field matches a [N] marker in the body
+5. DO NOT write any prose response, planning notes, or commentary outside of tool calls. Your work is: search → submit_citations. Nothing else.
+
+THE [N] MARKERS ARE MANDATORY:
+- Every source you submit MUST have a corresponding [N] marker in updated_content.
+- Submitting sources without inserting [N] markers in the body is a FAILURE — the citation is unanchored, the reader can't see what's being cited.
+- Example of CORRECT placement: "Dancing appears to reduce dementia risk more than most other physical activities [1]."
+- Example of INCORRECT: returning the body unchanged and putting sources only in the sources array.
+
+If you cannot find a source for a claim, do not include that claim in the sources array AND do not insert a marker for it. Sources and [N] markers must always come in matched pairs.
 
 WHAT TO CITE:
 - Specific statistics or numbers ("studies show 30% improvement", "lifters who train 3x/week")
@@ -122,7 +133,7 @@ const SUBMIT_CITATIONS_TOOL = {
       updated_content: {
         type: 'string',
         description:
-          'The article body in Markdown, with [N] citation markers inserted at the appropriate spots. Preserves all original prose; only [N] markers and (optionally) brief direct quotes have been added.',
+          'The article body in Markdown, WITH [N] citation markers inserted INLINE at the end of each cited claim. Example: "Studies show progressive overload drives growth [1]." The markers are literal text like "[1]", "[2]". Every source in the sources array MUST have a corresponding [N] in this content. Preserves all original prose; only [N] markers and (optionally) brief direct quotes have been added.',
       },
       sources: {
         type: 'array',
@@ -267,6 +278,22 @@ Search the web for sources, then call the submit_citations tool with the result.
   if (!Array.isArray(parsed.sources)) {
     log('sources missing or wrong type');
     return { ok: false, error: 'Response missing sources array' };
+  }
+
+  // Marker-count guard. Claude sometimes submits sources without
+  // actually inserting the [N] markers in the body (or vice versa). If
+  // sources exist but no [N] markers do, the citation is unanchored and
+  // useless to readers — fail fast rather than save a half-broken state.
+  const markerMatches = parsed.updated_content.match(/\[(\d+)\]/g) ?? [];
+  if (parsed.sources.length > 0 && markerMatches.length === 0) {
+    log(`MISMATCH: ${parsed.sources.length} sources submitted but 0 [N] markers in body`);
+    return {
+      ok: false,
+      error: `Model submitted ${parsed.sources.length} source(s) but inserted 0 [N] markers in the article body. The citations would be unanchored. Re-run to retry — the prompt will request markers explicitly.`,
+    };
+  }
+  if (parsed.sources.length > 0) {
+    log(`marker check OK: ${markerMatches.length} marker(s) in body for ${parsed.sources.length} source(s)`);
   }
 
   // Empty sources is a valid "I couldn't find good citations" outcome.
