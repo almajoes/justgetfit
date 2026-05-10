@@ -48,24 +48,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (typeof body.sort_order === 'number') update.sort_order = body.sort_order;
   if (typeof body.is_active === 'boolean') update.is_active = body.is_active;
 
-  // Photo + credit invariant — enforced server-side. We compute the final
-  // values by merging the update with the current row so the check is
-  // accurate even when the admin is only updating one of the two fields.
-  if ('photo_url' in update || 'photo_credit' in update) {
-    const { data: current } = await supabaseAdmin
-      .from('authors')
-      .select('photo_url, photo_credit')
-      .eq('id', params.id)
-      .maybeSingle();
-    const finalPhoto = 'photo_url' in update ? update.photo_url : current?.photo_url;
-    const finalCredit = 'photo_credit' in update ? update.photo_credit : current?.photo_credit;
-    if (finalPhoto && !finalCredit) {
-      return NextResponse.json(
-        { error: 'photo_credit is required when photo_url is set (Unsplash license terms).' },
-        { status: 400 }
-      );
-    }
-  }
+  // Note (May 9 2026): the prior "photo_credit required when photo_url
+  // is set" invariant has been relaxed. Custom-uploaded photos don't
+  // need attribution; admins are responsible for setting credit on
+  // Unsplash or other third-party sources where attribution is required.
 
   const { data, error } = await supabaseAdmin
     .from('authors')

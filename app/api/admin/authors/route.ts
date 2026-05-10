@@ -65,14 +65,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // photo_credit is now optional regardless of photo_url. Custom uploads
+  // don't need attribution; Unsplash photos do, but we trust the admin
+  // to fill it in when they paste an Unsplash URL or use the seeded
+  // Unsplash photos. (May 9 2026 — relaxed from the prior strict rule.)
   const photo_url = (body.photo_url || '').trim() || null;
   const photo_credit = (body.photo_credit || '').trim() || null;
-  if (photo_url && !photo_credit) {
-    return NextResponse.json(
-      { error: 'photo_credit is required when photo_url is set (Unsplash license terms).' },
-      { status: 400 }
-    );
-  }
 
   const { data, error } = await supabaseAdmin
     .from('authors')
