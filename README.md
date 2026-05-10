@@ -9,7 +9,7 @@ Evidence-based fitness blog. Next.js 14 (App Router) + Supabase + Anthropic Clau
 ## What this is
 
 - A blog with 8 categories (Strength, Hypertrophy, Conditioning, Nutrition, Recovery, Mobility, Programming, Mindset)
-- Twice-weekly cron generates AI draft articles every Monday and Friday at 9 AM Eastern
+- Manual draft generation from `/admin/generate` — pick which topics, AI drafts the article, you review and publish on your schedule
 - Drafts go through a manual review queue before publishing
 - Optional newsletter blast on publish via Resend
 - Full CMS at `/admin` for posts, drafts, topics, partners, navigation, page content, settings, subscribers
@@ -66,7 +66,7 @@ Visit `http://localhost:3000`. The admin is at `/admin` (login with `ADMIN_PASSW
 3. Set the same env vars in Vercel project settings
 4. Deploy
 
-**Cron timing:** `vercel.json` is set to `0 13 * * 1,5` which is **9 AM EDT every Monday and Friday**. During EST (Nov–Mar) this fires at 8 AM Eastern. If you want exact 9 AM year-round, use a third-party cron service or add a server-side guard.
+**Article cadence:** Articles are generated manually from `/admin/generate`. There's no cron firing on a schedule — you pick when to generate, which topics, and which authors get the byline. Other crons (analytics aggregation, pageview purge, watchdog) still run on schedule via `vercel.json`.
 
 ## Structure
 
@@ -87,7 +87,7 @@ app/
 ├── admin/
 │   ├── drafts/                  - Review AI-drafted articles
 │   ├── posts/                   - Edit published articles
-│   ├── topics/                  - Topic queue for cron
+│   ├── topics/                  - Topic queue for manual generation
 │   ├── pages/                   - Edit static page content (CMS)
 │   ├── navigation/              - Edit nav menus
 │   ├── partners/                - Edit partner cards
@@ -97,8 +97,7 @@ app/
 └── api/
     ├── contact/                 - Contact form submission
     ├── subscribe/               - Subscribe + confirm + unsubscribe
-    ├── cron/generate-draft/     - Weekly cron endpoint
-    └── admin/                   - All admin write endpoints
+    └── admin/                   - All admin write endpoints (incl. batch-generate)
 
 lib/
 ├── supabase.ts        - DB client + types
@@ -142,11 +141,11 @@ After deploying with an empty database, you'll have 51 seeded topic ideas but ze
 
 **Cost:** ~$0.30–0.50 per article in Anthropic API costs ($15–25 total for 51 articles).
 
-**Important:** backfill skips the manual review step — articles go live directly. Read a few of them after generation and clean up anything off. After the backfill is done, all future articles use the standard draft → review → publish flow (cron generates drafts on Mondays and Fridays, you review and publish).
+**Important:** backfill skips the manual review step — articles go live directly. Read a few of them after generation and clean up anything off. After the backfill is done, all future articles use the standard draft → review → publish flow (you generate drafts manually from `/admin/generate`, review, and publish).
 
 ## Ongoing flow
 
-After backfill, the cron (Mondays and Fridays at 9 AM EDT, defined in `vercel.json`) generates one new draft per fire and drops it into `/admin/drafts`. You review it, edit if needed, and click **Publish**. If "Send to subscribers" is checked, the publish action also blasts the article to all confirmed subscribers via Resend.
+You generate drafts manually from `/admin/generate` whenever you want a new article. Pick which topics to use (one POST per topic, ~30-60s each), the AI drafts the articles, they land in `/admin/drafts`. Open one, pick a byline author from the dropdown (no auto-assignment — you assign based on topic fit), edit if needed, and click **Publish**. If "Send to subscribers" is checked, the publish action also blasts the article to all confirmed subscribers via Resend.
 
 You can also manually trigger draft generation any time via `/admin/generate` → "Draft batch" mode.
 

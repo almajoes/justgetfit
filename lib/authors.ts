@@ -9,17 +9,21 @@
  * the value to know how many drafts have been generated since rotation
  * started, modulo legacy seeds).
  *
- * Race-safety:
- *   The standard cron firing at 13:00 UTC twice a week is single-threaded
- *   (Vercel Cron). Manual generation via /admin/generate could in theory
- *   collide with cron if an admin clicks "Generate" at exactly 13:00 on
- *   a Mon/Fri — but the worst-case outcome is two consecutive drafts get
- *   assigned to the same author. Acceptable.
+ * NOTE (May 9 2026): pickNextAuthor() is currently NOT wired into any
+ * draft-creation path. The cron has been removed and batch-generate no
+ * longer auto-assigns authors — admins pick author by topic fit in the
+ * DraftEditor before publish. The helper is retained for future use (a
+ * potential "auto-rotate" toggle, or scripted backfill jobs).
+ *
+ * Race-safety (when the helper is wired back in):
+ *   Manual generation is single-threaded per request. If two admins
+ *   click "Generate" at the same moment they could collide on the
+ *   rotation pointer — worst case both drafts get assigned the same
+ *   author. Acceptable.
  *
  * Returns:
  *   The picked Author row, or `null` if there are no active authors at
- *   all (caller should fall back to an unbylined draft in that case —
- *   should never happen in practice once the migration is run).
+ *   all.
  */
 
 import { supabaseAdmin } from '@/lib/supabase-admin';

@@ -114,9 +114,9 @@ export { readingMinutes };
 // =============================================================================
 // TOPIC GENERATION
 //
-// Used by /api/admin/topics/generate (manual) and the weekly cron.
-// Takes the 8 fitness categories + existing topic titles (to avoid duplicates)
-// and asks Claude to come up with N fresh topic ideas.
+// Used by /api/admin/topics/generate (manual). Takes the 8 fitness
+// categories + existing topic titles (to avoid duplicates) and asks
+// Claude to come up with N fresh topic ideas.
 // =============================================================================
 
 const TOPIC_SYSTEM_PROMPT = `You are a fitness content strategist for Just Get Fit at justgetfit.org.

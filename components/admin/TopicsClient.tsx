@@ -198,7 +198,7 @@ export function TopicsClient({ topics }: { topics: Topic[] }) {
       <h2 className="text-xl font-bold mb-4">Available ({unused.length})</h2>
       <div className="space-y-2 mb-12">
         {unused.length === 0 ? (
-          <p className="italic" style={{ color: 'var(--text-3)' }}>No unused topics. Add some to keep the cron going.</p>
+          <p className="italic" style={{ color: 'var(--text-3)' }}>No unused topics. Add some so you have material to generate from.</p>
         ) : (
           unused.map((t) => (
             <div key={t.id} className="p-4 rounded-lg" style={{ background: 'var(--bg-1)', border: '1px solid var(--line)' }}>
