@@ -40,6 +40,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     content: string;
     cover_image_url?: string | null;
     cover_image_credit?: string | null;
+    author_id?: string | null;     // optional override — DraftEditor lets the admin reassign
+    editor_credit?: string | null; // optional override — defaults to "Just Get Fit Editorial"
     send_newsletter?: boolean;
     audience?: { mode: 'all' } | { mode: 'list'; subscriber_ids: string[] };
   };
@@ -51,7 +53,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const {
     action, title, slug, excerpt, category, content,
-    cover_image_url, cover_image_credit, send_newsletter, audience,
+    cover_image_url, cover_image_credit, author_id, editor_credit,
+    send_newsletter, audience,
   } = body;
 
   if (!action || !['save', 'publish', 'reject'].includes(action)) {
@@ -67,18 +70,24 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ ok: true });
     }
 
-    await supabaseAdmin
-      .from('drafts')
-      .update({
-        title: title.trim(),
-        slug: slug.trim(),
-        excerpt: excerpt?.trim() || null,
-        category: category?.trim() || null,
-        content,
-        cover_image_url: cover_image_url || null,
-        cover_image_credit: cover_image_credit || null,
-      })
-      .eq('id', params.id);
+    // Build the draft update payload. We only include the author/credit
+    // fields when the caller actually sent them — undefined means "leave
+    // the existing value alone" so the rotation-assigned author from
+    // generation time isn't accidentally cleared by an editor that didn't
+    // include the field.
+    const draftUpdate: Record<string, unknown> = {
+      title: title.trim(),
+      slug: slug.trim(),
+      excerpt: excerpt?.trim() || null,
+      category: category?.trim() || null,
+      content,
+      cover_image_url: cover_image_url || null,
+      cover_image_credit: cover_image_credit || null,
+    };
+    if (author_id !== undefined) draftUpdate.author_id = author_id || null;
+    if (editor_credit !== undefined) draftUpdate.editor_credit = editor_credit?.trim() || null;
+
+    await supabaseAdmin.from('drafts').update(draftUpdate).eq('id', params.id);
 
     if (action === 'save') return NextResponse.json({ ok: true });
 
@@ -95,6 +104,16 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       );
     }
 
+    // Re-read the draft so we capture whatever author_id ended up on it
+    // (whether from the rotation at generation time or an admin override
+    // just now). This is the single source of truth for the byline at
+    // publish time.
+    const { data: draftRow } = await supabaseAdmin
+      .from('drafts')
+      .select('author_id, editor_credit')
+      .eq('id', params.id)
+      .maybeSingle();
+
     const { data: post, error: insertError } = await supabaseAdmin
       .from('posts')
       .insert({
@@ -108,6 +127,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         draft_id: params.id,
         read_minutes: readingMinutes(content),
         published_at: new Date().toISOString(),
+        // Carry the byline through. editor_credit falls back to the
+        // standard string; author_id stays null if no rotation was set up.
+        author_id: draftRow?.author_id ?? null,
+        editor_credit: draftRow?.editor_credit ?? 'Just Get Fit Editorial',
       })
       .select()
       .single();

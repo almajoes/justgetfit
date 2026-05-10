@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { generateDraft, generateTopics } from '@/lib/anthropic';
 import { searchUnsplash } from '@/lib/unsplash';
+import { pickNextAuthor } from '@/lib/authors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -127,6 +128,9 @@ export async function GET(request: NextRequest) {
       if (suffix > 50) throw new Error('Could not generate unique slug');
     }
 
+    // Round-robin author assignment. See lib/authors.ts for the contract.
+    const author = await pickNextAuthor();
+
     const { data: draft, error: insertError } = await supabaseAdmin
       .from('drafts')
       .insert({
@@ -141,6 +145,7 @@ export async function GET(request: NextRequest) {
         status: 'pending',
         generation_model: generated.model,
         generation_notes: `Auto-generated from topic "${topic.title}" on ${new Date().toISOString()}`,
+        author_id: author?.id ?? null,
       })
       .select()
       .single();

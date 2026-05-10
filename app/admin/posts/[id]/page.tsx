@@ -5,16 +5,18 @@ import type { Post } from '@/lib/supabase';
 import { PostEditor } from '@/components/admin/PostEditor';
 import { getCategories } from '@/lib/cms';
 import { loadConfirmedSubscribers } from '@/lib/subscribers';
+import { listAllAuthors } from '@/lib/authors';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 export default async function EditPostPage({ params }: { params: { id: string } }) {
-  const [postRow, categories, subscribers] = await Promise.all([
+  const [postRow, categories, subscribers, authors] = await Promise.all([
     supabaseAdmin.from('posts').select('*').eq('id', params.id).maybeSingle(),
     getCategories(),
     loadConfirmedSubscribers(),
+    listAllAuthors(),
   ]);
   const post = postRow.data;
   if (!post) notFound();
@@ -34,7 +36,7 @@ export default async function EditPostPage({ params }: { params: { id: string } 
       >
         ← All posts
       </Link>
-      <PostEditor post={post as Post} categories={categories} subscribers={subscribers} />
+      <PostEditor post={post as Post} categories={categories} subscribers={subscribers} authors={authors} />
     </div>
   );
 }

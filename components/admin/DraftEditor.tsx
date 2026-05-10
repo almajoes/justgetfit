@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Draft, Category } from '@/lib/supabase';
+import type { Draft, Category, Author } from '@/lib/supabase';
 import { JobProgress } from './JobProgress';
 import {
   AudiencePicker,
@@ -20,10 +20,12 @@ export function DraftEditor({
   draft,
   categories,
   subscribers,
+  authors,
 }: {
   draft: Draft;
   categories: Category[];
   subscribers: Subscriber[];
+  authors: Author[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<null | 'save' | 'publish' | 'reject'>(null);
@@ -44,6 +46,12 @@ export function DraftEditor({
   const [content, setContent] = useState(draft.content);
   const [coverUrl, setCoverUrl] = useState(draft.cover_image_url ?? '');
   const [coverCredit, setCoverCredit] = useState(draft.cover_image_credit ?? '');
+
+  // Author override. Defaults to whatever the draft was generated with
+  // (set by pickNextAuthor() at generation time). Editor can reassign by
+  // picking a different active author from the dropdown.
+  const [authorId, setAuthorId] = useState<string | null>(draft.author_id ?? null);
+  const activeAuthors = useMemo(() => authors.filter((a) => a.is_active), [authors]);
 
   // Audience selection for the newsletter blast on publish.
   // Default: 'all' (matches previous behavior of "Send to subscribers" checked).
@@ -105,6 +113,7 @@ export function DraftEditor({
           action, title, slug, excerpt, category, content,
           cover_image_url: coverUrl || null,
           cover_image_credit: coverCredit || null,
+          author_id: authorId,
           send_newsletter: action === 'publish' ? sendNewsletter : false,
           audience: audiencePayload,
         }),
@@ -251,6 +260,43 @@ export function DraftEditor({
           <div>
             <label className="label">Excerpt</label>
             <textarea value={excerpt} onChange={(e) => setExcerpt(e.target.value)} disabled={isReadOnly} rows={2} className="input resize-y" />
+          </div>
+
+          {/* AUTHOR — round-robin assignment from generation time, can be
+              overridden here. The "Edited by Just Get Fit Editorial" line
+              renders below the byline regardless of who's selected. */}
+          <div>
+            <label className="label">
+              Author
+              {activeAuthors.length === 0 && (
+                <span style={{ color: 'var(--text-3)', fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+                  No active authors — set up some at <code>/admin/authors</code>
+                </span>
+              )}
+            </label>
+            <select
+              value={authorId ?? ''}
+              onChange={(e) => setAuthorId(e.target.value || null)}
+              disabled={isReadOnly}
+              className="input"
+            >
+              <option value="">— Just Get Fit Editorial (no byline author) —</option>
+              {activeAuthors.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+              {/* If the assigned author exists but is now inactive, keep
+                  them selectable so re-saving doesn't silently drop them. */}
+              {authorId && !activeAuthors.find((a) => a.id === authorId) && (() => {
+                const inactive = authors.find((a) => a.id === authorId);
+                return inactive ? (
+                  <option key={inactive.id} value={inactive.id}>
+                    {inactive.name} (inactive)
+                  </option>
+                ) : null;
+              })()}
+            </select>
           </div>
 
           {/* COVER IMAGE */}

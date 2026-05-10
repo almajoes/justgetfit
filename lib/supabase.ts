@@ -22,6 +22,13 @@ export type Post = {
   read_minutes: number | null;
   published_at: string;
   updated_at: string;
+  // Authors + bylines (May 2026):
+  // author_id points to the public.authors row that bylines this post;
+  // editor_credit is the "Edited by ..." line that always reads "Just Get
+  // Fit Editorial" by default. Both nullable for back-compat with rows
+  // that pre-date the migration; new rows always carry both.
+  author_id?: string | null;
+  editor_credit?: string | null;
 };
 
 export type Draft = {
@@ -39,6 +46,22 @@ export type Draft = {
   generation_notes: string | null;
   created_at: string;
   updated_at: string;
+  // See Post type for the authors/byline contract — same shape on drafts
+  // so the assignment survives the draft → publish copy step.
+  author_id?: string | null;
+  editor_credit?: string | null;
+};
+
+export type Author = {
+  id: string;
+  slug: string;
+  name: string;
+  bio: string | null;
+  photo_url: string | null;
+  photo_credit: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
 };
 
 export type Topic = {

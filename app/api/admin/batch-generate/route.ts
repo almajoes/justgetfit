@@ -3,6 +3,7 @@ import { checkAdminAuth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { generateDraft } from '@/lib/anthropic';
 import { searchUnsplash } from '@/lib/unsplash';
+import { pickNextAuthor } from '@/lib/authors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -107,6 +108,14 @@ export async function POST(req: NextRequest) {
       if (suffix > 50) throw new Error('Slug collision');
     }
 
+    // Pick the next author from the round-robin rotation. If no authors
+    // are configured (shouldn't happen post-migration), the draft gets
+    // null author_id and the byline falls back to plain "Just Get Fit
+    // Editorial" at render time. editor_credit always defaults to that
+    // anyway via the column default — we omit it from the insert so the
+    // database default applies.
+    const author = await pickNextAuthor();
+
     const { data: draft, error } = await supabaseAdmin
       .from('drafts')
       .insert({
@@ -121,6 +130,7 @@ export async function POST(req: NextRequest) {
         status: 'pending',
         generation_model: generated.model,
         generation_notes: `Batch-generated ${new Date().toISOString()}`,
+        author_id: author?.id ?? null,
       })
       .select()
       .single();

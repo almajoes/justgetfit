@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Post, Category } from '@/lib/supabase';
+import type { Post, Category, Author } from '@/lib/supabase';
 import { ResendPanel } from './ResendPanel';
 import type { Subscriber } from './AudiencePicker';
 
@@ -37,10 +37,12 @@ export function PostEditor({
   post,
   categories,
   subscribers,
+  authors,
 }: {
   post: Post;
   categories: Category[];
   subscribers: Subscriber[];
+  authors: Author[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<null | 'save' | 'delete'>(null);
@@ -54,6 +56,10 @@ export function PostEditor({
   const [content, setContent] = useState(post.content);
   const [coverUrl, setCoverUrl] = useState(post.cover_image_url ?? '');
   const [coverCredit, setCoverCredit] = useState(post.cover_image_credit ?? '');
+  // Byline author. Read from the Post row; can be reassigned here for
+  // published articles. Same dropdown contract as DraftEditor.
+  const [authorId, setAuthorId] = useState<string | null>(post.author_id ?? null);
+  const activeAuthors = useMemo(() => authors.filter((a) => a.is_active), [authors]);
   // Published date in datetime-local format (local time, no timezone) — YYYY-MM-DDTHH:mm
   const [publishedAt, setPublishedAt] = useState(toDatetimeLocal(post.published_at));
   const [photoQuery, setPhotoQuery] = useState('');
@@ -84,6 +90,7 @@ export function PostEditor({
           title, slug, excerpt, category, content,
           cover_image_url: coverUrl || null,
           cover_image_credit: coverCredit || null,
+          author_id: authorId,
           published_at: fromDatetimeLocal(publishedAt),
         }),
       });
@@ -157,6 +164,38 @@ export function PostEditor({
           <div>
             <label className="label">Excerpt</label>
             <textarea value={excerpt} onChange={(e) => setExcerpt(e.target.value)} rows={2} className="input resize-y" />
+          </div>
+          {/* Byline author — same contract as DraftEditor. Set on publish
+              from the round-robin rotation; can be reassigned here. */}
+          <div>
+            <label className="label">
+              Author
+              {activeAuthors.length === 0 && (
+                <span style={{ color: 'var(--text-3)', fontWeight: 400, marginLeft: 8, fontSize: 12 }}>
+                  No active authors — set up some at <code>/admin/authors</code>
+                </span>
+              )}
+            </label>
+            <select
+              value={authorId ?? ''}
+              onChange={(e) => setAuthorId(e.target.value || null)}
+              className="input"
+            >
+              <option value="">— Just Get Fit Editorial (no byline author) —</option>
+              {activeAuthors.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+              {authorId && !activeAuthors.find((a) => a.id === authorId) && (() => {
+                const inactive = authors.find((a) => a.id === authorId);
+                return inactive ? (
+                  <option key={inactive.id} value={inactive.id}>
+                    {inactive.name} (inactive)
+                  </option>
+                ) : null;
+              })()}
+            </select>
           </div>
           <div>
             <label className="label">Published date</label>

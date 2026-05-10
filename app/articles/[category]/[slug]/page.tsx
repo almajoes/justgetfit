@@ -8,7 +8,9 @@ import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { AppCTA } from '@/components/AppCTA';
+import { ArticleByline } from '@/components/ArticleByline';
 import { getCategories, getAppPage } from '@/lib/cms';
+import { getAuthorById } from '@/lib/authors';
 import { preprocessMarkdown } from '@/lib/markdown';
 
 export const revalidate = 0;
@@ -47,6 +49,12 @@ export async function generateMetadata({ params }: { params: { category: string;
   if (post.category !== params.category) return {};
   const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
 
+  // Look up the byline author (if any) so we can put a real name in OG
+  // metadata. Falls back to the editorial credit when there's no author
+  // (legacy posts that haven't been backfilled, or a deleted author).
+  const author = await getAuthorById(post.author_id);
+  const bylineName = author?.name || post.editor_credit || 'Just Get Fit Editorial';
+
   // OG image: use the cover image, but for Unsplash URLs we APPEND size +
   // crop params so the served image actually matches the declared 1200×630.
   // Without this, social scrapers (LinkedIn especially) reject the OG image
@@ -69,7 +77,7 @@ export async function generateMetadata({ params }: { params: { category: string;
       url,
       publishedTime: post.published_at,
       modifiedTime: post.updated_at,
-      authors: ['Just Get Fit Editorial'],
+      authors: [bylineName],
       section: post.category ?? undefined,
       images: [{ url: ogImage, width: 1200, height: 630, alt: post.title }],
     },
@@ -130,11 +138,12 @@ export default async function ArticlePage({ params }: { params: { category: stri
   // Verify category matches — prevents URL spoofing like /articles/strength/<nutrition-slug>
   if (post.category !== params.category) notFound();
 
-  const [related, categories, counts, appPage] = await Promise.all([
+  const [related, categories, counts, appPage, author] = await Promise.all([
     getRelatedPosts(post.category, post.slug, 3),
     getCategories(),
     getCategoryCounts(),
     getAppPage(),
+    getAuthorById(post.author_id),
   ]);
 
   const formattedDate = new Date(post.published_at).toLocaleDateString('en-US', {
@@ -143,9 +152,24 @@ export default async function ArticlePage({ params }: { params: { category: stri
     year: 'numeric',
   });
 
-  // JSON-LD Article schema — helps Google understand the content structure
-  // and qualify for rich results (publication date, author, image)
+  // JSON-LD Article schema. With a real author we use Person; the
+  // organization stays as publisher. The "Edited by Just Get Fit
+  // Editorial" line is rendered visually but not in JSON-LD because
+  // schema.org doesn't have a clean "editor" predicate that all crawlers
+  // honor — author + publisher cover what Google needs for rich results.
   const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://justgetfit.org';
+  const articleAuthorSchema = author
+    ? {
+        '@type': 'Person',
+        name: author.name,
+        url: `${SITE_URL}/articles?author=${author.slug}`,
+      }
+    : {
+        '@type': 'Organization',
+        name: post.editor_credit || 'Just Get Fit Editorial',
+        url: SITE_URL,
+      };
+
   const articleJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -154,11 +178,7 @@ export default async function ArticlePage({ params }: { params: { category: stri
     image: post.cover_image_url || `${SITE_URL}/og-image.png`,
     datePublished: post.published_at,
     dateModified: post.updated_at || post.published_at,
-    author: {
-      '@type': 'Organization',
-      name: 'Just Get Fit Editorial',
-      url: SITE_URL,
-    },
+    author: articleAuthorSchema,
     publisher: {
       '@type': 'Organization',
       name: 'Just Get Fit',
@@ -221,8 +241,6 @@ export default async function ArticlePage({ params }: { params: { category: stri
                   <span>{post.read_minutes} min read</span>
                 </>
               )}
-              <span>·</span>
-              <span>Just Get Fit Editorial</span>
             </div>
 
             <h1
@@ -238,10 +256,18 @@ export default async function ArticlePage({ params }: { params: { category: stri
             </h1>
 
             {post.excerpt && (
-              <p style={{ fontSize: 21, color: 'var(--text-2)', lineHeight: 1.5, marginBottom: 40 }}>
+              <p style={{ fontSize: 21, color: 'var(--text-2)', lineHeight: 1.5, marginBottom: 32 }}>
                 {post.excerpt}
               </p>
             )}
+
+            {/* Byline: author photo + name + "Edited by ..." line. Falls
+                back gracefully when the post has no author_id (legacy
+                rows that pre-date the migration). */}
+            <ArticleByline
+              author={author}
+              editorCredit={post.editor_credit || 'Just Get Fit Editorial'}
+            />
 
             {post.cover_image_url && (
               <figure style={{ margin: '0 0 40px' }}>

@@ -15,6 +15,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     title: string; slug: string; excerpt: string; category: string; content: string;
     cover_image_url?: string | null; cover_image_credit?: string | null;
     published_at?: string | null;
+    author_id?: string | null;
+    editor_credit?: string | null;
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Bad JSON' }, { status: 400 }); }
 
@@ -57,6 +59,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     read_minutes: readingMinutes(body.content),
   };
   if (publishedAtUpdate) updateData.published_at = publishedAtUpdate;
+  // Author / editor_credit only update when present in body. `null` is a
+  // valid update meaning "remove byline author"; only `undefined`
+  // (omitted from request) leaves the existing value alone.
+  if ('author_id' in body) updateData.author_id = body.author_id || null;
+  if ('editor_credit' in body) updateData.editor_credit = body.editor_credit?.trim() || null;
 
   const { error } = await supabaseAdmin
     .from('posts')
