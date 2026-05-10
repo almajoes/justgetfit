@@ -15,18 +15,26 @@ import type { Post, Source } from '@/lib/supabase';
  *      prose — only insert citation markers and (optionally) add direct
  *      quotes. Original voice and structure stay intact.
  *
- *   2. Verify after generate. After Claude returns sources, we fetch
+ *   2. Tool-call output, not JSON-in-text. Claude is required to deliver
+ *      its final result by calling the `submit_citations` client tool
+ *      (defined below). The SDK validates against the input_schema, and
+ *      we read the structured payload directly off the tool_use block.
+ *      This sidesteps the failure mode where Claude writes planning
+ *      prose ("Let me analyze the claims...") instead of the JSON we
+ *      asked for. The tool definition is the contract.
+ *
+ *   3. Verify after generate. After Claude returns sources, we fetch
  *      each URL server-side and check (a) HTTP 200 and (b) the page
  *      title roughly matches what Claude said it was. Sources that fail
  *      either check are dropped, and the body markers are renumbered to
  *      stay consistent.
  *
- *   3. Fail open. If verification rejects all sources (or web_search
+ *   4. Fail open. If verification rejects all sources (or web_search
  *      returns nothing), we leave the article unchanged and return
- *      sources: null. The article stays publishable with no citations
+ *      sources: []. The article stays publishable with no citations
  *      rather than half-citation broken state.
  *
- *   4. Cost control. max_uses=8 caps web_search calls per article at $0.08
+ *   5. Cost control. max_uses=8 caps web_search calls per article at $0.08
  *      tool fee + token costs. Realistic per-article: $0.20-0.30.
  *
  * Web search docs: https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
@@ -39,7 +47,13 @@ const MAX_WEB_SEARCHES = 8;
 const CITATION_SYSTEM_PROMPT = `You are adding citations to an existing fitness article on justgetfit.org.
 
 YOUR JOB:
-You receive a finished article body in Markdown. Your job is to identify factual claims that benefit from a real-source citation, use the web_search tool to find HIGH-QUALITY real sources, and insert [N] citation markers inline in the prose. You will also return a structured Sources list.
+You receive a finished article body in Markdown. Your job is to identify factual claims that benefit from a real-source citation, use the web_search tool to find HIGH-QUALITY real sources, and finally call the submit_citations tool with the structured result.
+
+PROCESS:
+1. Read the article and identify 3-8 factual claims that warrant citation.
+2. For each claim, use web_search to find a real, high-quality source.
+3. When you have your sources, call the submit_citations tool with the article body (including [N] markers you've inserted) and the source list.
+4. DO NOT write any prose response, planning notes, or commentary outside of tool calls. Your work is: search → submit_citations. Nothing else.
 
 WHAT TO CITE:
 - Specific statistics or numbers ("studies show 30% improvement", "lifters who train 3x/week")
@@ -74,36 +88,81 @@ A. Source-only (most claims): The original sentence stays unchanged, just append
    Example: "Studies show progressive overload drives hypertrophy [1]."
 
 B. Direct quote (when the source's exact phrasing sharpens the claim): Quote a SHORT excerpt.
-   Example: "As Schoenfeld put it, \\"volume is the strongest predictor of growth\\" [2]."
+   Example: 'As Schoenfeld put it, "volume is the strongest predictor of growth" [2].'
 
-The model picks per claim. Most should be source-only. Use direct quotes sparingly — when the exact wording adds something a paraphrase doesn't.
+Most citations should be source-only. Use direct quotes sparingly.
 
 CRITICAL RULES:
 1. DO NOT REWRITE THE PROSE. Insert [N] markers and (optionally) a brief direct quote. Do not change voice, structure, paragraph order, or sentence rhythm. The article was already edited.
 2. DO NOT INVENT CITATIONS. Every source must be a real URL you found via web_search. If you can't find a real source for a claim, leave it uncited.
 3. DO NOT FABRICATE STATS OR STUDIES. Only cite what the source actually says.
 4. SHORT QUOTES ONLY. Direct quotes must be under 20 words and properly attributed.
-5. AIM FOR 3-8 CITATIONS per article. Less than 3 = not enough effort to find sources. More than 8 = over-citing for an 800-1200 word post.
+5. AIM FOR 3-8 CITATIONS per article.
 6. NUMBERS ARE SEQUENTIAL. [1], [2], [3]... in the order they first appear in the body. Source list n field matches.
 
-OUTPUT FORMAT:
-Respond with a single JSON object, no markdown fences, no preamble. Schema:
+If after searching you can't find any usable sources, call submit_citations with the original updated_content unchanged and an empty sources array. That's a valid outcome.`;
 
-{
-  "updated_content": "string — the article body with [N] markers inserted. EVERY paragraph from the original must appear unchanged except for marker insertion and any optional direct quotes you added.",
-  "sources": [
-    {
-      "n": 1,
-      "title": "Exact title of the source page or paper",
-      "url": "https://full-url-you-found-via-web-search.com/...",
-      "publication": "Publication or organization name (e.g. 'PubMed', 'NYTimes', 'Mayo Clinic')",
-      "quote": "Short verbatim excerpt if you used direct-quote style. null otherwise."
-    }
-  ]
-}
-
-If no claims warrant a citation OR if web_search returns nothing usable, return:
-{ "updated_content": "<original body unchanged>", "sources": [] }`;
+/**
+ * The submit_citations client tool. Claude calls this once at the end
+ * with the structured citations payload — bypassing the JSON-parsing
+ * problems we hit when asking for JSON in a text block (the model would
+ * sometimes write planning prose instead).
+ *
+ * Defining this with a strict input_schema means the SDK validates
+ * Claude's tool call against the schema before delivering it to us, so
+ * we get type-safe data without manually parsing JSON.
+ */
+const SUBMIT_CITATIONS_TOOL = {
+  name: 'submit_citations',
+  description:
+    'Submit the final citation result. Call this exactly once after gathering sources via web_search.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      updated_content: {
+        type: 'string',
+        description:
+          'The article body in Markdown, with [N] citation markers inserted at the appropriate spots. Preserves all original prose; only [N] markers and (optionally) brief direct quotes have been added.',
+      },
+      sources: {
+        type: 'array',
+        description:
+          'The sources cited by the [N] markers in updated_content, in order of first appearance. Empty array if no usable sources were found.',
+        items: {
+          type: 'object',
+          properties: {
+            n: {
+              type: 'integer',
+              description:
+                'Citation number matching the [N] marker in the body. Sequential starting at 1.',
+              minimum: 1,
+            },
+            title: {
+              type: 'string',
+              description: 'Exact title of the source page or paper.',
+            },
+            url: {
+              type: 'string',
+              description: 'Full URL of the source. Must be a real URL found via web_search.',
+            },
+            publication: {
+              type: ['string', 'null'],
+              description:
+                "Publication or organization name (e.g. 'PubMed', 'NYTimes', 'Mayo Clinic'). Null if unclear.",
+            },
+            quote: {
+              type: ['string', 'null'],
+              description:
+                'Short verbatim excerpt under 20 words if direct-quote style was used. Null for source-only citations.',
+            },
+          },
+          required: ['n', 'title', 'url'],
+        },
+      },
+    },
+    required: ['updated_content', 'sources'],
+  },
+} as const;
 
 /**
  * The shape Claude returns. Validated before we trust it.
@@ -153,14 +212,14 @@ CATEGORY: ${post.category ?? 'general'}
 ARTICLE BODY:
 ${post.content}
 
-Add citations now. Use web_search to find real sources. Return the JSON response only.`;
+Search the web for sources, then call the submit_citations tool with the result.`;
 
   let response: Anthropic.Message;
   try {
-    log('calling Anthropic API with web_search tool');
+    log('calling Anthropic API with web_search + submit_citations tools');
     response = await client.messages.create({
       model: MODEL,
-      max_tokens: 8192, // big enough to fit a 1200-word article + sources JSON
+      max_tokens: 8192, // big enough to fit a 1200-word article + sources payload
       system: CITATION_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
       tools: [
@@ -169,6 +228,7 @@ Add citations now. Use web_search to find real sources. Return the JSON response
           name: 'web_search',
           max_uses: MAX_WEB_SEARCHES,
         } as unknown as Anthropic.Tool, // SDK type doesn't yet include the server-tool variant
+        SUBMIT_CITATIONS_TOOL as unknown as Anthropic.Tool,
       ],
     });
     log(`API call returned (stop_reason=${response.stop_reason}, ${response.content.length} content blocks)`);
@@ -178,32 +238,26 @@ Add citations now. Use web_search to find real sources. Return the JSON response
     return { ok: false, error: msg };
   }
 
-  // The response may contain web_search_tool_use, web_search_tool_result, and
-  // text blocks interleaved. We want the FINAL text block which carries
-  // the JSON answer after web search rounds completed.
-  const textBlocks = response.content.filter((b) => b.type === 'text');
-  log(`extracted ${textBlocks.length} text blocks (total content blocks: ${response.content.length})`);
-  const finalText = textBlocks[textBlocks.length - 1];
-  if (!finalText || finalText.type !== 'text') {
-    log('NO TEXT CONTENT — content block types: ' + response.content.map((b) => b.type).join(','));
-    return { ok: false, error: 'No text content in Anthropic response (only tool calls?)' };
+  // We expect the model to end its turn by calling submit_citations.
+  // Find that tool_use block and read its input — that's our structured
+  // payload, no JSON parsing needed.
+  const submitCall = response.content.find(
+    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'submit_citations'
+  );
+  if (!submitCall) {
+    // Diagnostic: log what we DID get back so we can iterate on the prompt.
+    const blockTypes = response.content.map((b) => b.type).join(',');
+    const textPreview =
+      (response.content.find((b) => b.type === 'text') as Anthropic.TextBlock | undefined)?.text.slice(0, 300) ?? '(no text block)';
+    log(`submit_citations NOT called. blocks=[${blockTypes}], stop_reason=${response.stop_reason}, text preview="${textPreview}"`);
+    return {
+      ok: false,
+      error: `Model didn't call submit_citations (stop_reason=${response.stop_reason}). Text preview: ${textPreview.slice(0, 200)}`,
+    };
   }
-  log(`final text block length: ${finalText.text.length}`);
+  log('submit_citations call found — reading structured input');
 
-  // Strip markdown fences if present, parse JSON
-  const cleaned = finalText.text
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```\s*$/i, '')
-    .trim();
-
-  let parsed: CitationsResponse;
-  try {
-    parsed = JSON.parse(cleaned) as CitationsResponse;
-    log(`JSON parsed successfully (${parsed.sources?.length ?? '?'} sources proposed)`);
-  } catch {
-    console.error(`[addCitations ${post.id?.slice(0, 8)}] Failed to parse JSON. Raw text first 1000 chars:`, finalText.text.slice(0, 1000));
-    return { ok: false, error: `Model returned non-JSON output (first 200 chars: ${finalText.text.slice(0, 200)})` };
-  }
+  const parsed = submitCall.input as CitationsResponse;
 
   // Shape validation
   if (typeof parsed.updated_content !== 'string') {
