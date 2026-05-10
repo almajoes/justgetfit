@@ -7,13 +7,16 @@ import type { Post, Source, RejectedSource } from '@/lib/supabase';
  *
  * Given an already-written article (post.content), use Claude with the
  * web_search tool to find real sources that back up factual claims in
- * the prose, insert numbered [N] markers inline, and return both the
- * updated content and the verified source list.
+ * the prose, and return a verified source list. The article body is
+ * NEVER modified — sources appear as a "References" / "Sources"
+ * section at the bottom of the rendered article, not anchored to
+ * specific claims with inline markers.
  *
  * Key design decisions:
- *   1. Surgical, not generative. Prompt tells Claude to NOT rewrite
- *      prose — only insert citation markers and (optionally) add direct
- *      quotes. Original voice and structure stay intact.
+ *   1. Sources only. No inline [N] markers, no prose rewriting. The
+ *      body the admin authored is preserved exactly. Sources render as
+ *      a numbered list at the bottom of the article, like a "Further
+ *      reading" section.
  *
  *   2. Tool-call output, not JSON-in-text. Claude is required to deliver
  *      its final result by calling the `submit_citations` client tool
@@ -26,13 +29,12 @@ import type { Post, Source, RejectedSource } from '@/lib/supabase';
  *   3. Verify after generate. After Claude returns sources, we fetch
  *      each URL server-side and check (a) HTTP 200 and (b) the page
  *      title roughly matches what Claude said it was. Sources that fail
- *      either check are dropped, and the body markers are renumbered to
- *      stay consistent.
+ *      either check are moved to rejected_sources for admin review on
+ *      /admin/sources, where they can be manually approved.
  *
  *   4. Fail open. If verification rejects all sources (or web_search
- *      returns nothing), we leave the article unchanged and return
- *      sources: []. The article stays publishable with no citations
- *      rather than half-citation broken state.
+ *      returns nothing), sources stays []. The article is publishable
+ *      either way — the body never changed.
  *
  *   5. Cost control. max_uses=8 caps web_search calls per article at $0.08
  *      tool fee + token costs. Realistic per-article: $0.20-0.30.
@@ -44,27 +46,18 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 const MODEL = 'claude-sonnet-4-5';
 const MAX_WEB_SEARCHES = 8;
 
-const CITATION_SYSTEM_PROMPT = `You are adding citations to an existing fitness article on justgetfit.org.
+const CITATION_SYSTEM_PROMPT = `You are adding a "References" list to an existing fitness article on justgetfit.org.
 
 YOUR JOB:
-You receive a finished article body in Markdown. Your job is to identify factual claims that benefit from a real-source citation, use the web_search tool to find HIGH-QUALITY real sources, and finally call the submit_citations tool with the structured result.
+You receive a finished article body in Markdown. Your job is to identify factual claims that benefit from a real-source citation, use the web_search tool to find HIGH-QUALITY real sources, and finally call the submit_citations tool with the structured source list.
+
+The article body itself is NEVER modified. You produce a list of references that will appear at the bottom of the article — like the "Sources" section in a magazine article. No inline markers in the prose, no rewrites, no edits to the body. Just a curated list of references that back up claims in the article.
 
 PROCESS:
 1. Read the article and identify 3-8 factual claims that warrant citation.
 2. For each claim, use web_search to find a real, high-quality source.
-3. Insert a [N] marker IN THE ARTICLE BODY immediately after each cited claim. The [N] markers go INLINE in the prose, NOT at the end of the article. They are the literal text "[1]", "[2]", etc.
-4. Call submit_citations with:
-   - updated_content: the article body WITH [N] markers inserted inline
-   - sources: the list of sources, where each source's "n" field matches a [N] marker in the body
-5. DO NOT write any prose response, planning notes, or commentary outside of tool calls. Your work is: search → submit_citations. Nothing else.
-
-THE [N] MARKERS ARE MANDATORY:
-- Every source you submit MUST have a corresponding [N] marker in updated_content.
-- Submitting sources without inserting [N] markers in the body is a FAILURE — the citation is unanchored, the reader can't see what's being cited.
-- Example of CORRECT placement: "Dancing appears to reduce dementia risk more than most other physical activities [1]."
-- Example of INCORRECT: returning the body unchanged and putting sources only in the sources array.
-
-If you cannot find a source for a claim, do not include that claim in the sources array AND do not insert a marker for it. Sources and [N] markers must always come in matched pairs.
+3. Call submit_citations with the source list.
+4. DO NOT write any prose response, planning notes, or commentary outside of tool calls. Your work is: search → submit_citations. Nothing else.
 
 WHAT TO CITE:
 - Specific statistics or numbers ("studies show 30% improvement", "lifters who train 3x/week")
@@ -94,24 +87,17 @@ AVOID:
 - Listicle aggregators
 - Wikipedia (not a primary source — go to Wikipedia's references instead)
 
-CITATION STYLES — pick whichever fits the claim better:
-A. Source-only (most claims): The original sentence stays unchanged, just append a [N] marker.
-   Example: "Studies show progressive overload drives hypertrophy [1]."
-
-B. Direct quote (when the source's exact phrasing sharpens the claim): Quote a SHORT excerpt.
-   Example: 'As Schoenfeld put it, "volume is the strongest predictor of growth" [2].'
-
-Most citations should be source-only. Use direct quotes sparingly.
+OPTIONAL DIRECT QUOTES:
+For each source, you may optionally include a SHORT verbatim excerpt (under 20 words) in the quote field. This shows up below the source title at the bottom of the article. Use sparingly — only when the source's exact wording adds something a paraphrase couldn't. Most sources should have quote: null.
 
 CRITICAL RULES:
-1. DO NOT REWRITE THE PROSE. Insert [N] markers and (optionally) a brief direct quote. Do not change voice, structure, paragraph order, or sentence rhythm. The article was already edited.
-2. DO NOT INVENT CITATIONS. Every source must be a real URL you found via web_search. If you can't find a real source for a claim, leave it uncited.
-3. DO NOT FABRICATE STATS OR STUDIES. Only cite what the source actually says.
-4. SHORT QUOTES ONLY. Direct quotes must be under 20 words and properly attributed.
-5. AIM FOR 3-8 CITATIONS per article.
-6. NUMBERS ARE SEQUENTIAL. [1], [2], [3]... in the order they first appear in the body. Source list n field matches.
+1. DO NOT INVENT CITATIONS. Every source must be a real URL you found via web_search.
+2. DO NOT FABRICATE STATS OR STUDIES. Only cite what the source actually says.
+3. SHORT QUOTES ONLY. Optional direct quotes must be under 20 words and properly attributed.
+4. AIM FOR 3-8 CITATIONS per article.
+5. NUMBERS ARE SEQUENTIAL. n: 1, 2, 3, ... in the order you list them.
 
-If after searching you can't find any usable sources, call submit_citations with the original updated_content unchanged and an empty sources array. That's a valid outcome.`;
+If after searching you can't find any usable sources, call submit_citations with an empty sources array. That's a valid outcome.`;
 
 /**
  * The submit_citations client tool. Claude calls this once at the end
@@ -126,26 +112,21 @@ If after searching you can't find any usable sources, call submit_citations with
 const SUBMIT_CITATIONS_TOOL = {
   name: 'submit_citations',
   description:
-    'Submit the final citation result. Call this exactly once after gathering sources via web_search.',
+    'Submit the final list of references for the article. Call this exactly once after gathering sources via web_search.',
   input_schema: {
     type: 'object',
     properties: {
-      updated_content: {
-        type: 'string',
-        description:
-          'The article body in Markdown, WITH [N] citation markers inserted INLINE at the end of each cited claim. Example: "Studies show progressive overload drives growth [1]." The markers are literal text like "[1]", "[2]". Every source in the sources array MUST have a corresponding [N] in this content. Preserves all original prose; only [N] markers and (optionally) brief direct quotes have been added.',
-      },
       sources: {
         type: 'array',
         description:
-          'The sources cited by the [N] markers in updated_content, in order of first appearance. Empty array if no usable sources were found.',
+          'The references for the article, in order. Each is a real source found via web_search that supports a factual claim in the article. Empty array if no usable sources were found.',
         items: {
           type: 'object',
           properties: {
             n: {
               type: 'integer',
               description:
-                'Citation number matching the [N] marker in the body. Sequential starting at 1.',
+                'Sequential reference number starting at 1 (1, 2, 3, ...). Used as a stable identifier in the references list.',
               minimum: 1,
             },
             title: {
@@ -164,22 +145,22 @@ const SUBMIT_CITATIONS_TOOL = {
             quote: {
               type: ['string', 'null'],
               description:
-                'Short verbatim excerpt under 20 words if direct-quote style was used. Null for source-only citations.',
+                'Optional short verbatim excerpt under 20 words. Null for most sources; only include when the exact wording adds something a paraphrase could not.',
             },
           },
           required: ['n', 'title', 'url'],
         },
       },
     },
-    required: ['updated_content', 'sources'],
+    required: ['sources'],
   },
 } as const;
 
 /**
- * The shape Claude returns. Validated before we trust it.
+ * The shape Claude returns via the submit_citations tool. Validated
+ * before we trust it. The body is never modified — sources only.
  */
 type CitationsResponse = {
-  updated_content: string;
   sources: Array<{
     n: number;
     title: string;
@@ -193,16 +174,18 @@ type CitationsResponse = {
  * Result of running citations on a post.
  *
  * - ok: true with sources populated — happy path, store these
- * - ok: true with sources=[] — Claude couldn't find good sources, no
- *   change to article. Caller should treat as "no citations available"
- *   and leave content unchanged.
+ * - ok: true with sources=[] — Claude couldn't find good sources.
+ *   Caller should treat as "no citations available."
  * - ok: false — actual error (API failure, parse failure, etc.). Caller
  *   should NOT update the post; surface error to admin.
+ *
+ * Note: the article body is never modified by this pipeline. Sources
+ * are stored on posts.sources only; the body stays exactly as the
+ * admin authored it.
  */
 export type AddCitationsResult =
   | {
       ok: true;
-      updatedContent: string;
       sources: Source[];
       rejectedSources: RejectedSource[];
       stats: {
@@ -272,38 +255,16 @@ Search the web for sources, then call the submit_citations tool with the result.
   const parsed = submitCall.input as CitationsResponse;
 
   // Shape validation
-  if (typeof parsed.updated_content !== 'string') {
-    log('updated_content missing or wrong type');
-    return { ok: false, error: 'Response missing updated_content' };
-  }
   if (!Array.isArray(parsed.sources)) {
     log('sources missing or wrong type');
     return { ok: false, error: 'Response missing sources array' };
   }
 
-  // Marker-count guard. Claude sometimes submits sources without
-  // actually inserting the [N] markers in the body (or vice versa). If
-  // sources exist but no [N] markers do, the citation is unanchored and
-  // useless to readers — fail fast rather than save a half-broken state.
-  const markerMatches = parsed.updated_content.match(/\[(\d+)\]/g) ?? [];
-  if (parsed.sources.length > 0 && markerMatches.length === 0) {
-    log(`MISMATCH: ${parsed.sources.length} sources submitted but 0 [N] markers in body`);
-    return {
-      ok: false,
-      error: `Model submitted ${parsed.sources.length} source(s) but inserted 0 [N] markers in the article body. The citations would be unanchored. Re-run to retry — the prompt will request markers explicitly.`,
-    };
-  }
-  if (parsed.sources.length > 0) {
-    log(`marker check OK: ${markerMatches.length} marker(s) in body for ${parsed.sources.length} source(s)`);
-  }
-
   // Empty sources is a valid "I couldn't find good citations" outcome.
-  // Return the original content unchanged.
   if (parsed.sources.length === 0) {
-    log('Claude returned 0 sources — returning original content unchanged');
+    log('Claude returned 0 sources');
     return {
       ok: true,
-      updatedContent: post.content, // explicitly leave unchanged
       sources: [],
       rejectedSources: [],
       stats: { proposed: 0, verified: 0, rejected: 0 },
@@ -320,7 +281,6 @@ Search the web for sources, then call the submit_citations tool with the result.
   );
   const verifiedSources: Source[] = [];
   const rejectedSources: RejectedSource[] = []; // for admin review
-  const droppedNumbers: number[] = []; // [N] markers we'll need to remove from body
 
   const accessedAt = new Date().toISOString();
   for (let i = 0; i < parsed.sources.length; i++) {
@@ -337,7 +297,6 @@ Search the web for sources, then call the submit_citations tool with the result.
       });
     } else {
       console.warn(`[addCitations] Source rejected: ${proposed.url} — ${result.reason}`);
-      droppedNumbers.push(proposed.n);
       // Keep the rejected source for admin review on /admin/sources.
       // Reason text is what verifySource() returned — admin can read it
       // and decide whether to manually approve.
@@ -352,31 +311,23 @@ Search the web for sources, then call the submit_citations tool with the result.
   }
 
   if (verifiedSources.length === 0) {
-    // Every proposed source failed verification. Don't store partial
-    // body changes — just signal "no citations" outcome. We DO still
-    // return the rejected list so the admin can see what got tried.
+    // Every proposed source failed verification. Return the rejected
+    // list so the admin can review them on /admin/sources.
     return {
       ok: true,
-      updatedContent: post.content,
       sources: [],
       rejectedSources,
       stats: { proposed, verified: 0, rejected: proposed },
     };
   }
 
-  // Renumber sources sequentially in the order they appear in the body.
-  // Claude was asked to produce 1..N in order, but if any got rejected
-  // we need to remap the remaining markers so we have a clean 1..K
-  // sequence with no gaps.
-  const { renumberedContent, renumberedSources } = renumberAndCleanBody(
-    parsed.updated_content,
-    verifiedSources,
-    droppedNumbers
-  );
+  // Renumber sources sequentially 1..K. Claude was asked to produce
+  // 1..N in order; if any got rejected there'd be gaps. Resequencing
+  // produces a clean numbered list for display.
+  const renumberedSources = verifiedSources.map((s, i) => ({ ...s, n: i + 1 }));
 
   return {
     ok: true,
-    updatedContent: renumberedContent,
     sources: renumberedSources,
     rejectedSources,
     stats: {
@@ -519,65 +470,4 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, ' ');
-}
-
-/**
- * Renumber [N] markers in the body to be sequential 1..K after some
- * sources got rejected. Walks the body, finds [N] markers in order,
- * remaps the surviving ones to 1, 2, 3..., removes markers for rejected
- * sources, and rebuilds the source list in the new order.
- */
-function renumberAndCleanBody(
-  body: string,
-  verifiedSources: Source[],
-  droppedNumbers: number[]
-): { renumberedContent: string; renumberedSources: Source[] } {
-  const dropped = new Set(droppedNumbers);
-  const oldToNew = new Map<number, number>();
-  let nextNew = 1;
-
-  // First pass: walk the body, find each [N] marker, decide its new number.
-  // Build oldToNew mapping in order of FIRST appearance (so [3] appearing
-  // before [1] in body would get renumbered first).
-  const markerRe = /\[(\d+)\]/g;
-  let m: RegExpExecArray | null;
-  while ((m = markerRe.exec(body)) !== null) {
-    const oldN = parseInt(m[1], 10);
-    if (dropped.has(oldN)) continue;
-    if (!oldToNew.has(oldN)) {
-      oldToNew.set(oldN, nextNew++);
-    }
-  }
-
-  // Second pass: rewrite body. Remove dropped markers entirely; rewrite
-  // surviving markers to their new numbers.
-  let renumberedContent = body.replace(/\[(\d+)\]/g, (full, n: string) => {
-    const oldN = parseInt(n, 10);
-    if (dropped.has(oldN)) return ''; // strip
-    const newN = oldToNew.get(oldN);
-    return newN ? `[${newN}]` : full; // fallback if somehow not in map
-  });
-
-  // Clean up whitespace artifacts left by stripped markers. A marker
-  // typically appears like "claim text [3]." — stripping leaves
-  // "claim text ." (space before punctuation), or " claim" (extra space)
-  // when between sentences. Coalesce.
-  renumberedContent = renumberedContent
-    .replace(/\s+([.,;:!?])/g, '$1') // " ." → "."
-    .replace(/[ \t]{2,}/g, ' ');     // collapse runs of spaces (preserve newlines)
-
-  // Build the new source list in the new order. Source whose old n
-  // wasn't found in the body at all is skipped (defensive — shouldn't
-  // happen if Claude obeyed the prompt).
-  const renumberedSources: Source[] = [];
-  const sourceByOldN = new Map(verifiedSources.map((s) => [s.n, s]));
-  for (const [oldN, newN] of oldToNew.entries()) {
-    const src = sourceByOldN.get(oldN);
-    if (!src) continue;
-    renumberedSources.push({ ...src, n: newN });
-  }
-  // Sort by new n for tidiness.
-  renumberedSources.sort((a, b) => a.n - b.n);
-
-  return { renumberedContent, renumberedSources };
 }

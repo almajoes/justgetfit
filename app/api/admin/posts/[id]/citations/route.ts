@@ -18,23 +18,21 @@ export const maxDuration = 300;
  *
  * Add citations to an existing post. Reads the post body, runs the
  * citation generation pipeline (web_search + verification), and stores
- * the result on the post row.
+ * the resulting source list on the post row. The body is never modified.
  *
  * Behavior:
  *   - If post already has non-empty sources: skips by default. Pass
  *     ?force=1 to overwrite.
- *   - On success: updates posts.content with [N] markers and posts.sources
- *     with the verified source list. Returns the stats and updated row.
- *   - On no-good-sources outcome: leaves posts.content unchanged, sets
- *     posts.sources = [] (empty array, not null) to mark "we tried".
- *     Returns ok: true with stats.verified = 0.
+ *   - On success: updates posts.sources with the verified source list
+ *     and posts.rejected_sources with the ones that failed verification.
+ *     Returns stats.
+ *   - On no-good-sources outcome: sources = [] (so future runs know
+ *     we tried), rejected_sources populated for admin review.
  *   - On error: returns 500 with the error message.
  *
- * NO UI for this yet — call it via curl during testing:
- *
- *   curl -X POST \
- *     -H "Authorization: Bearer $ADMIN_TOKEN" \
- *     https://justgetfit.org/api/admin/posts/<post-id>/citations
+ * Triggered from:
+ *   - Per-post "Add citations" button on /admin/posts/[id]
+ *   - Bulk "Backfill all uncited" button on /admin/sources
  */
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -85,14 +83,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: result.error, elapsedMs }, { status: 500 });
   }
 
-  // Persist to DB. Even when verified === 0 we set sources = [] (not null)
-  // so the next run knows we tried and can skip without re-spending API
-  // dollars. Force run can still overwrite.
-  console.log(`[citations] Writing to DB: post=${typedPost.id}, sources=${result.sources.length}, rejected=${result.rejectedSources.length}, contentChanged=${result.updatedContent !== typedPost.content}`);
+  // Persist to DB. The body is never modified by the citations
+  // pipeline — we only update sources + rejected_sources. Even when
+  // verified === 0 we set sources = [] (not null) so the next run
+  // knows we tried and can skip without re-spending API dollars.
+  // Force run can still overwrite.
+  console.log(`[citations] Writing to DB: post=${typedPost.id}, sources=${result.sources.length}, rejected=${result.rejectedSources.length}`);
   const { error: updateErr } = await supabaseAdmin
     .from('posts')
     .update({
-      content: result.updatedContent,
       sources: result.sources,
       rejected_sources: result.rejectedSources,
     })
@@ -111,7 +110,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     stats: result.stats,
     sources: result.sources,
     rejectedSources: result.rejectedSources,
-    contentChanged: result.updatedContent !== typedPost.content,
-    contentLength: result.updatedContent.length,
   });
 }

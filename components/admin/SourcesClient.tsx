@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { Post, Source, RejectedSource } from '@/lib/supabase';
 
 /**
@@ -45,6 +46,7 @@ export function SourcesClient({
   // We hold posts in local state so approve/discard can mutate the
   // rejected list without a full page round-trip. After mutations we
   // also call router.refresh() to re-pull canonical state.
+  const router = useRouter();
   const [posts, setPosts] = useState(initialPosts);
   const [tab, setTab] = useState<Tab>('by-article');
   const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
@@ -55,6 +57,20 @@ export function SourcesClient({
   // Track which (postId, url) pair is currently being approved/discarded
   // so we can disable buttons while a request is in flight.
   const [actingOn, setActingOn] = useState<string | null>(null);
+  // Bulk backfill state. Runs the citation pipeline on every uncited
+  // post in sequence. Each post takes ~50-90s, so backfilling 50 posts
+  // is a 40-75 minute commitment. The admin needs to leave the tab
+  // open. Closing it stops the loop; reopening + clicking backfill
+  // resumes from wherever it left off (uncited posts only).
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState({
+    done: 0,
+    total: 0,
+    currentTitle: '',
+    succeeded: 0,
+    skipped: 0,
+    failed: 0,
+  });
 
   // ── Derived data ──
   // postsWithCitations: just posts that have at least one source.
@@ -226,6 +242,112 @@ export function SourcesClient({
     }
   }
 
+  // ── Bulk backfill ──
+  // Run the citation pipeline on every uncited post sequentially. Calls
+  // the existing per-post endpoint (/api/admin/posts/[id]/citations) for
+  // each post, waits for it to finish, then moves to the next. Each
+  // call updates the post's sources/rejected_sources independently — if
+  // we crash mid-loop, completed posts are saved and re-running the
+  // backfill picks up where we left off (already-cited posts get
+  // skipped by the endpoint's default skip-if-cited check).
+  //
+  // Why client-loop and not a server background job: each post takes
+  // 50-90s of API time. Backfilling 50 posts = ~50 minutes total, well
+  // past Vercel's 300s function limit. A client loop is the simplest
+  // architecture that handles a multi-hour task without infrastructure.
+  async function backfillAllUncited() {
+    // Recompute the set fresh from current state — the user may have
+    // already-cited some posts in the time the page has been open.
+    const targets = posts.filter((p) => p.sources === null || p.sources === undefined);
+    if (targets.length === 0) {
+      setError('No uncited posts to backfill.');
+      return;
+    }
+
+    const estCostLow = (targets.length * 0.2).toFixed(2);
+    const estCostHigh = (targets.length * 0.3).toFixed(2);
+    const estTimeMin = Math.ceil((targets.length * 60) / 60); // assume ~60s/post avg
+    const confirmed = confirm(
+      `Backfill citations for ${targets.length} uncited post${targets.length === 1 ? '' : 's'}?\n\n` +
+        `• Estimated cost: $${estCostLow}–$${estCostHigh} in API spend\n` +
+        `• Estimated time: ~${estTimeMin} minute${estTimeMin === 1 ? '' : 's'} (sequential, one at a time)\n\n` +
+        `IMPORTANT: keep this tab open. Closing it stops the backfill (already-completed posts are saved). You can reopen and re-click backfill to resume — already-cited posts get skipped.`
+    );
+    if (!confirmed) return;
+
+    setBackfilling(true);
+    setError(null);
+    setBackfillProgress({
+      done: 0,
+      total: targets.length,
+      currentTitle: '',
+      succeeded: 0,
+      skipped: 0,
+      failed: 0,
+    });
+
+    let succeeded = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (let i = 0; i < targets.length; i++) {
+      const post = targets[i];
+      setBackfillProgress({
+        done: i,
+        total: targets.length,
+        currentTitle: post.title,
+        succeeded,
+        skipped,
+        failed,
+      });
+
+      try {
+        const res = await fetch(`/api/admin/posts/${post.id}/citations`, {
+          method: 'POST',
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          console.error(`[backfill] Post "${post.title}" failed: ${data.error || res.status}`);
+          failed++;
+        } else if (data.skipped) {
+          skipped++;
+        } else {
+          succeeded++;
+          // Update local state for this post so the UI reflects the new
+          // sources count without a page refresh.
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === post.id
+                ? { ...p, sources: data.sources, rejected_sources: data.rejectedSources }
+                : p
+            )
+          );
+        }
+      } catch (err) {
+        console.error(`[backfill] Post "${post.title}" threw:`, err);
+        failed++;
+      }
+
+      // Brief pause between posts to be nice to the API and let the UI
+      // breathe. Small enough to be invisible, large enough to avoid
+      // hammering.
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    setBackfillProgress({
+      done: targets.length,
+      total: targets.length,
+      currentTitle: '',
+      succeeded,
+      skipped,
+      failed,
+    });
+    setBackfilling(false);
+    // Pull canonical state after all the local updates so anything
+    // we missed (e.g. a stat) refreshes properly.
+    router.refresh();
+  }
+
   // ── Render ──
   return (
     <div>
@@ -290,8 +412,18 @@ export function SourcesClient({
         </TabButton>
         <div style={{ flex: 1 }} />
         <button
+          onClick={backfillAllUncited}
+          disabled={backfilling || checking || uncitedPosts.neverRun.length === 0}
+          className="btn btn-ghost"
+          style={{ padding: '8px 14px', fontSize: 13 }}
+        >
+          {backfilling
+            ? `Backfilling ${backfillProgress.done}/${backfillProgress.total}…`
+            : `Backfill ${uncitedPosts.neverRun.length} uncited`}
+        </button>
+        <button
           onClick={checkAllLinks}
-          disabled={checking || bySource.length === 0}
+          disabled={checking || backfilling || bySource.length === 0}
           className="btn btn-ghost"
           style={{ padding: '8px 14px', fontSize: 13 }}
         >
@@ -300,6 +432,82 @@ export function SourcesClient({
             : `Check ${bySource.length} unique link${bySource.length === 1 ? '' : 's'}`}
         </button>
       </div>
+
+      {/* Live backfill progress banner. Stays sticky at the top of the
+          content while the loop runs so the admin can monitor progress
+          across tab switches. Disappears when the run finishes. */}
+      {backfilling && (
+        <div
+          style={{
+            background: 'rgba(196,255,61,0.06)',
+            border: '1px solid var(--neon)',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--neon)' }}>
+              Backfilling citations
+            </span>
+            <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
+              {backfillProgress.done} of {backfillProgress.total} posts processed
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+              ({backfillProgress.succeeded} succeeded, {backfillProgress.skipped} skipped, {backfillProgress.failed} failed)
+            </span>
+          </div>
+          {backfillProgress.currentTitle && (
+            <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>
+              Now: {backfillProgress.currentTitle}
+            </div>
+          )}
+          {/* Progress bar */}
+          <div
+            style={{
+              height: 6,
+              background: 'rgba(255,255,255,0.05)',
+              borderRadius: 100,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: `${backfillProgress.total === 0 ? 0 : (backfillProgress.done / backfillProgress.total) * 100}%`,
+                background: 'var(--neon)',
+                transition: 'width 0.4s ease',
+              }}
+            />
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
+            Keep this tab open. Closing it stops the loop. Already-completed posts are saved.
+          </div>
+        </div>
+      )}
+
+      {/* Backfill complete summary. Shown briefly after a finished run.
+          Auto-clears when admin starts another action. */}
+      {!backfilling && backfillProgress.total > 0 && backfillProgress.done === backfillProgress.total && (
+        <div
+          style={{
+            background: 'rgba(196,255,61,0.04)',
+            border: '1px solid rgba(196,255,61,0.4)',
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 20,
+            fontSize: 13,
+            color: 'var(--text-2)',
+          }}
+        >
+          <strong style={{ color: 'var(--neon)' }}>Backfill complete.</strong>{' '}
+          Processed {backfillProgress.total} post{backfillProgress.total === 1 ? '' : 's'}:{' '}
+          {backfillProgress.succeeded} succeeded, {backfillProgress.skipped} skipped, {backfillProgress.failed} failed.
+        </div>
+      )}
 
       {tab === 'by-article' && (
         <ByArticleView

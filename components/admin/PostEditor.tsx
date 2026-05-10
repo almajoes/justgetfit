@@ -139,9 +139,8 @@ export function PostEditor({
    * overwrite (force=1) or skip.
    *
    * The endpoint takes 30-90 seconds. The button shows a "Working…"
-   * state for that duration. On success, we update local state and
-   * trigger router.refresh() so the article body reloads with the new
-   * markers and the count display updates.
+   * state for that duration. On success, we update local state with
+   * the new sources count.
    */
   async function runCitations() {
     const hasExisting = Array.isArray(sources) && sources.length > 0;
@@ -152,7 +151,7 @@ export function PostEditor({
       if (!confirmed) return;
     } else {
       const confirmed = confirm(
-        'Run citation generation for this post? This will use Claude with web search to add inline [N] markers and a sources list. Takes 30-90 seconds and costs ~$0.20-0.30 in API spend.'
+        'Run citation generation for this post? Uses Claude with web search to find real sources for factual claims. Adds a References list at the bottom of the article. Takes 30-90 seconds and costs ~$0.20-0.30 in API spend. The body of the article is not modified.'
       );
       if (!confirmed) return;
     }
@@ -180,7 +179,6 @@ export function PostEditor({
         elapsedMs?: number;
         stats?: { proposed: number; verified: number; rejected: number };
         sources?: typeof sources;
-        contentChanged?: boolean;
         error?: string;
       } = {};
       try {
@@ -218,7 +216,7 @@ export function PostEditor({
       } else if (data.stats?.verified === 0) {
         setCitationsStatus({
           kind: 'info',
-          message: `Ran in ${(data.elapsedMs! / 1000).toFixed(1)}s. No usable sources found (proposed ${data.stats.proposed}, all rejected by URL/title verification). Article unchanged.`,
+          message: `Ran in ${(data.elapsedMs! / 1000).toFixed(1)}s. No usable sources found (proposed ${data.stats.proposed}, all rejected by URL/title verification). Rejected sources are listed on /admin/sources for review.`,
         });
         setSources([]);
       } else {
@@ -227,9 +225,6 @@ export function PostEditor({
           message: `Added ${data.stats!.verified} citations in ${(data.elapsedMs! / 1000).toFixed(1)}s (proposed ${data.stats!.proposed}, ${data.stats!.rejected} rejected by verification).`,
         });
         setSources(data.sources ?? []);
-        // Refresh from server so the content textarea reflects the new
-        // body with [N] markers inserted.
-        router.refresh();
       }
     } catch (err) {
       // Network-level error, fetch failed entirely (CORS, network drop,
@@ -442,7 +437,7 @@ export function PostEditor({
               </span>
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5, margin: 0 }}>
-              Adds inline [N] markers to the body and a verified Sources list. Uses Claude + web search; takes 30-90s and costs ~$0.20-0.30 per article.
+              Adds a verified References list at the bottom of the article. Uses Claude + web search to find real sources for factual claims. The article body is not modified. Takes 30-90s and costs ~$0.20-0.30 per article.
             </p>
             {citationsStatus && (
               <div
