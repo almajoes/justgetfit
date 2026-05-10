@@ -260,7 +260,7 @@ export function SourcesClient({
     // already-cited some posts in the time the page has been open.
     const targets = posts.filter((p) => p.sources === null || p.sources === undefined);
     if (targets.length === 0) {
-      setError('No uncited posts to backfill.');
+      setError('No uncited posts. Everything has citations attempted.');
       return;
     }
 
@@ -268,10 +268,10 @@ export function SourcesClient({
     const estCostHigh = (targets.length * 0.3).toFixed(2);
     const estTimeMin = Math.ceil((targets.length * 60) / 60); // assume ~60s/post avg
     const confirmed = confirm(
-      `Backfill citations for ${targets.length} uncited post${targets.length === 1 ? '' : 's'}?\n\n` +
+      `Add citations to ${targets.length} uncited post${targets.length === 1 ? '' : 's'}?\n\n` +
         `• Estimated cost: $${estCostLow}–$${estCostHigh} in API spend\n` +
         `• Estimated time: ~${estTimeMin} minute${estTimeMin === 1 ? '' : 's'} (sequential, one at a time)\n\n` +
-        `IMPORTANT: keep this tab open. Closing it stops the backfill (already-completed posts are saved). You can reopen and re-click backfill to resume — already-cited posts get skipped.`
+        `IMPORTANT: keep this tab open. Closing it stops the run (already-completed posts are saved). You can reopen and re-click to resume — already-cited posts get skipped.`
     );
     if (!confirmed) return;
 
@@ -418,8 +418,8 @@ export function SourcesClient({
           style={{ padding: '8px 14px', fontSize: 13 }}
         >
           {backfilling
-            ? `Backfilling ${backfillProgress.done}/${backfillProgress.total}…`
-            : `Backfill ${uncitedPosts.neverRun.length} uncited`}
+            ? `Citing ${backfillProgress.done}/${backfillProgress.total}…`
+            : `Add citations to ${uncitedPosts.neverRun.length} post${uncitedPosts.neverRun.length === 1 ? '' : 's'}`}
         </button>
         <button
           onClick={checkAllLinks}
@@ -451,7 +451,7 @@ export function SourcesClient({
         >
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--neon)' }}>
-              Backfilling citations
+              Adding citations
             </span>
             <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
               {backfillProgress.done} of {backfillProgress.total} posts processed
@@ -503,7 +503,7 @@ export function SourcesClient({
             color: 'var(--text-2)',
           }}
         >
-          <strong style={{ color: 'var(--neon)' }}>Backfill complete.</strong>{' '}
+          <strong style={{ color: 'var(--neon)' }}>Done.</strong>{' '}
           Processed {backfillProgress.total} post{backfillProgress.total === 1 ? '' : 's'}:{' '}
           {backfillProgress.succeeded} succeeded, {backfillProgress.skipped} skipped, {backfillProgress.failed} failed.
         </div>
