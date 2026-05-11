@@ -61,6 +61,42 @@ export function PostEditor({
     | null
   >(null);
 
+  // Track which source n is currently being deleted (for per-row
+  // disabled state during the request).
+  const [deletingSourceN, setDeletingSourceN] = useState<number | null>(null);
+
+  /**
+   * Delete a single source from this post. Calls the per-source delete
+   * endpoint which removes it and renumbers the remaining sources 1..K
+   * on the server. We update local state with whatever the endpoint
+   * returns so the UI reflects the renumbered list immediately.
+   */
+  async function deleteSource(n: number, title: string) {
+    const confirmed = confirm(
+      `Remove this source from the article?\n\n[${n}] ${title.length > 100 ? title.slice(0, 100) + '…' : title}\n\nThe remaining sources will be renumbered to stay sequential. This is reversible by re-running citations.`
+    );
+    if (!confirmed) return;
+
+    setDeletingSourceN(n);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/posts/${post.id}/sources/${n}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      // Server returned the renumbered list — adopt it.
+      setSources(data.sources);
+      // Clear any stale citationsStatus message since the count just
+      // changed from under it.
+      setCitationsStatus(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeletingSourceN(null);
+    }
+  }
+
   const [title, setTitle] = useState(post.title);
   const [slug, setSlug] = useState(post.slug);
   const [excerpt, setExcerpt] = useState(post.excerpt ?? '');
@@ -489,6 +525,110 @@ export function PostEditor({
                   </details>
                 )}
               </div>
+            )}
+
+            {/* Per-source list with Remove buttons. Renders only when
+                sources has entries — never-run and ran-but-empty states
+                stay clean. The whole block sits inside the same panel
+                as the run-citations button so all citation management
+                is in one place. */}
+            {Array.isArray(sources) && sources.length > 0 && (
+              <ol
+                style={{
+                  listStyle: 'none',
+                  padding: 0,
+                  margin: '12px 0 0',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                }}
+              >
+                {sources.map((s) => {
+                  const isDeleting = deletingSourceN === s.n;
+                  return (
+                    <li
+                      key={s.n}
+                      style={{
+                        display: 'flex',
+                        gap: 10,
+                        alignItems: 'flex-start',
+                        padding: '10px 12px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid var(--line)',
+                        borderRadius: 8,
+                        fontSize: 12.5,
+                        color: 'var(--text-2)',
+                        opacity: isDeleting ? 0.5 : 1,
+                        transition: 'opacity 0.12s',
+                      }}
+                    >
+                      <span
+                        style={{
+                          flexShrink: 0,
+                          fontWeight: 700,
+                          color: 'var(--neon)',
+                          minWidth: 24,
+                          // Non-emoji font stack so "[1]" stays as plain
+                          // text (some browsers render bracketed digits
+                          // as keycap emoji otherwise).
+                          fontFamily:
+                            'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                        }}
+                      >
+                        [{s.n}]
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <a
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          style={{
+                            color: 'var(--text)',
+                            textDecoration: 'underline',
+                            textDecorationColor: 'rgba(196,255,61,0.4)',
+                            textUnderlineOffset: 3,
+                            fontWeight: 500,
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {s.title}
+                        </a>
+                        {s.publication && (
+                          <span style={{ color: 'var(--text-3)', marginLeft: 6, fontSize: 12 }}>
+                            — {s.publication}
+                          </span>
+                        )}
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--text-3)',
+                            marginTop: 3,
+                            wordBreak: 'break-all',
+                            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                          }}
+                        >
+                          {s.url}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => deleteSource(s.n, s.title)}
+                        disabled={busy !== null || deletingSourceN !== null}
+                        className="btn btn-ghost"
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          color: '#ff9c9c',
+                          flexShrink: 0,
+                        }}
+                        title={`Remove source [${s.n}]`}
+                      >
+                        {isDeleting ? 'Removing…' : 'Remove'}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
             )}
           </div>
           <button
